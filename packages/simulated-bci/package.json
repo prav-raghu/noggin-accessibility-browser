@@ -1,0 +1,15 @@
+{
+  "name": "@noggin/simulated-bci",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Simulated BCI input adapter: keyboard/programmatic trigger of IntentEvents with configurable confidence jitter and error injection (spec section 5 'Simulated BCI' mode, section 13 step 2).",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "dependencies": {
+    "@noggin/intent-contract": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}

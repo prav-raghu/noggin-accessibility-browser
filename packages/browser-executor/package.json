@@ -1,0 +1,16 @@
+{
+  "name": "@noggin/browser-executor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Playwright-controlled Chromium executor (spec architecture layer 7). Reads page semantics via the CDP Accessibility domain and performs actions role/name-grounded rather than by screen coordinates (spec RQ3).",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "dependencies": {
+    "@noggin/intent-contract": "*",
+    "playwright": "^1.62.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}
