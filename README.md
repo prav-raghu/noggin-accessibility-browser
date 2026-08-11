@@ -1,4 +1,12 @@
-# noggin-accessibility-browser
+# Noggin Accessibility Browser
+
+<p align="left">
+  <img
+    src="https://res.cloudinary.com/dbqg2azyd/image/upload/v1786457899/eeac2ef0-2576-4703-a344-33f110ff6db6.png"
+    alt="Noggin Accessibility Browser"
+    width="250"
+  />
+</p>
 
 An AI-mediated accessibility browser that turns sparse, low-bandwidth neural intent
 into safe, auditable, multi-step web actions.
