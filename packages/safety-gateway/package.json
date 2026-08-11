@@ -1,0 +1,15 @@
+{
+  "name": "@noggin/safety-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Deterministic risk-tier policy engine, confirmation state machine and hard STOP pathway (spec sections 10-11). Sits between the planner and the browser executor and never itself calls an LLM.",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "dependencies": {
+    "@noggin/intent-contract": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}

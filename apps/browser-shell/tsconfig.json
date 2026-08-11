@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../../packages/intent-contract" },
+    { "path": "../../packages/simulated-bci" },
+    { "path": "../../packages/safety-gateway" },
+    { "path": "../../packages/agent-planner" },
+    { "path": "../../packages/browser-executor" },
+    { "path": "../../packages/audit-log" }
+  ]
+}

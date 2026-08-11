@@ -1,0 +1,26 @@
+{
+  "name": "@noggin/browser-shell",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Orchestrator app: wires simulated-bci -> agent-planner -> safety-gateway -> browser-executor -> audit-log and serves the local feedback-UI control panel.",
+  "type": "module",
+  "main": "src/main.ts",
+  "types": "src/main.ts",
+  "scripts": {
+    "dev": "tsx watch src/main.ts"
+  },
+  "dependencies": {
+    "@noggin/agent-planner": "*",
+    "@noggin/audit-log": "*",
+    "@noggin/browser-executor": "*",
+    "@noggin/intent-contract": "*",
+    "@noggin/safety-gateway": "*",
+    "@noggin/simulated-bci": "*",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.13",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

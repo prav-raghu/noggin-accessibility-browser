@@ -1,0 +1,12 @@
+{
+  "name": "@noggin/audit-log",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Append-only structured event trace (spec architecture layer 9 / section 11): distinguishes neural-source events, LLM interpretation, page context, gateway decisions and executed actions so traces can be audited and replayed.",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}

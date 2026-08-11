@@ -1,0 +1,30 @@
+{
+  "name": "noggin-accessibility-browser",
+  "version": "0.1.0",
+  "private": true,
+  "description": "BCI + AI accessibility browser research prototype: sparse neural intent, mediated by an LLM planner and a deterministic safety gateway, driving a Chromium browser over the accessibility tree.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @noggin/browser-shell",
+    "dev:headed": "NOGGIN_HEADLESS=false npm run dev --workspace @noggin/browser-shell",
+    "typecheck": "tsc -b tsconfig.json",
+    "lint": "eslint . --ext .ts",
+    "test": "node --import tsx --test packages/*/src/**/*.test.ts apps/*/src/**/*.test.ts",
+    "clean": "rm -rf packages/*/dist apps/*/dist tsconfig.tsbuildinfo"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "eslint": "^9.17.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

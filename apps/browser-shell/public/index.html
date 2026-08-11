@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Noggin — Accessibility Browser Control Panel</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Noggin control panel</h1>
+    <p id="connection-status" aria-live="polite">Connecting…</p>
+  </header>
+
+  <main>
+    <!-- Large, persistent state display (spec 12: "large, persistent display of
+         current interpreted intent and whether the system is listening, paused,
+         planning or acting"). aria-live="assertive" so screen readers announce
+         state changes immediately, including STOP. -->
+    <section aria-label="Agent state" class="state-banner">
+      <p id="state" aria-live="assertive">listening</p>
+      <p id="message" aria-live="polite"></p>
+    </section>
+
+    <!-- Interruptible at every step: STOP is always visible, never nested behind a
+         menu or modal. -->
+    <section aria-label="Emergency controls" class="controls controls-primary">
+      <button id="btn-stop" class="btn btn-stop" type="button">Stop</button>
+      <button id="btn-pause" class="btn" type="button">Pause</button>
+      <button id="btn-resume" class="btn" type="button">Resume</button>
+    </section>
+
+    <!-- Confirmation panel is always present in the DOM (not a modal - spec 12:
+         "avoid modal traps"), just disabled when there's nothing pending. -->
+    <section aria-label="Confirmation" class="panel">
+      <h2>Confirmation</h2>
+      <p id="pending-summary">Nothing awaiting confirmation.</p>
+      <div class="controls">
+        <button id="btn-confirm" class="btn btn-confirm" type="button" disabled>Confirm</button>
+        <button id="btn-reject" class="btn btn-reject" type="button" disabled>Reject</button>
+        <button id="btn-explain" class="btn" type="button">Explain what you are about to do</button>
+        <button id="btn-undo" class="btn" type="button">Undo last reversible action</button>
+      </div>
+    </section>
+
+    <!-- Low cognitive-load choice set: a handful of preset goals rather than a long
+         menu (spec 12: "normally 2-4 alternatives"). Mirrors the simulated-bci
+         keyboard bindings 1-4 so keyboard and control-panel users get the same
+         behavior. -->
+    <section aria-label="Simulated BCI: trigger a goal" class="panel">
+      <h2>Simulated intent (stand-in for a live BCI decoder)</h2>
+      <div class="controls" id="goal-buttons">
+        <button class="btn" type="button" data-preset="1">1 — YouTube: AVGN season 9</button>
+        <button class="btn" type="button" data-preset="2">2 — Weather today</button>
+        <button class="btn" type="button" data-preset="3">3 — Email inbox</button>
+        <button class="btn" type="button" data-preset="4">4 — News headlines</button>
+      </div>
+    </section>
+
+    <section aria-label="Event trace" class="panel">
+      <h2>Trace</h2>
+      <ul id="log" aria-live="off"></ul>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "name": "@noggin/agent-planner",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Planner interface (spec architecture layer 5) plus a deterministic, rule-based StubPlanner that requires no external LLM API call. Implement the Planner interface to swap in a real tool-calling LLM without touching the rest of the pipeline.",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "dependencies": {
+    "@noggin/intent-contract": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}
