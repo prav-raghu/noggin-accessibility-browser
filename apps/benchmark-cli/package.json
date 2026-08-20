@@ -1,0 +1,21 @@
+{
+  "name": "@noggin/benchmark-cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "M4 baseline experiment runner: executes @noggin/task-suite under direct-control and agentic-intent-control conditions via @noggin/benchmark and writes reproducible JSON + markdown results.",
+  "type": "module",
+  "main": "src/main.ts",
+  "types": "src/main.ts",
+  "scripts": {
+    "benchmark": "tsx src/main.ts"
+  },
+  "dependencies": {
+    "@noggin/benchmark": "*",
+    "@noggin/browser-executor": "*",
+    "@noggin/task-suite": "*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

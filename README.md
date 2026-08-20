@@ -21,7 +21,7 @@ classification or malicious page content cause harmful actions.
 Full product/research spec: [`docs/spec/BCI-AI-Accessibility-Browser-Spec-v0.1.md`](docs/spec/BCI-AI-Accessibility-Browser-Spec-v0.1.md).
 Architecture-to-code mapping and known gaps: [`docs/architecture.md`](docs/architecture.md).
 
-## What's here today (MVP milestones M1-M3)
+## What's here today (MVP milestones M1-M4)
 
 ```
 simulated-bci -> agent-planner -> safety-gateway -> browser-executor -> audit-log
@@ -46,6 +46,16 @@ simulated-bci -> agent-planner -> safety-gateway -> browser-executor -> audit-lo
 - **`apps/browser-shell`** — the orchestrator that wires all of the above together and
   serves a small local control panel (feedback UI) showing live intent/confidence/state
   with Stop / Pause / Confirm / Reject / Explain / Undo controls.
+- **`packages/task-suite`** — the M4 benchmark task suite (spec section 13 step 5):
+  four offline, `data:`-URL fixture tasks (media navigation, search, form completion,
+  information retrieval), each with a real DOM-level success check and a matching
+  `agent-planner` goal rule.
+- **`packages/benchmark`** — the M4 baseline experiment harness (spec section 15):
+  runs every task suite task under a direct-control baseline (Condition A) and under
+  agentic intent control through the real `StubPlanner` + `SafetyGateway` (Condition B),
+  and reports success rate, time, control-event count and confirmation burden.
+- **`apps/benchmark-cli`** — `npm run benchmark` runs the harness end to end and writes
+  reproducible JSON + markdown results to `run-data/`.
 
 See `docs/architecture.md` for what's deliberately *not* built yet (live EEG, a real
 LLM planner, SQLite-backed audit storage) and why.
@@ -59,6 +69,7 @@ npm install
 npm run typecheck   # tsc -b across the whole workspace
 npm test            # node:test, includes a headless Playwright smoke test
 npm run dev          # launch the pipeline + control panel (headless Chromium by default)
+npm run benchmark    # M4 baseline experiment: direct-control vs agentic-intent-control
 ```
 
 Then open `http://localhost:4173` for the control panel. If your terminal is a TTY,
@@ -75,6 +86,15 @@ Useful env vars (see `apps/browser-shell/src/main.ts`):
 
 `npm run dev:headed` is a shortcut for `NOGGIN_HEADLESS=false npm run dev`.
 
+The benchmark CLI (`apps/benchmark-cli`) reads its own env vars:
+
+| Var | Default | Purpose |
+|---|---|---|
+| `NOGGIN_HEADLESS` | `true` | Set `false` to run Chromium headed |
+| `NOGGIN_BENCHMARK_REPS` | `5` | Repetitions per task per condition |
+
+`npm run benchmark:headed` is a shortcut for `NOGGIN_HEADLESS=false npm run benchmark`.
+
 ## Repo layout
 
 ```
@@ -88,8 +108,11 @@ packages/
   safety-gateway/       risk tiers, confirmation, STOP
   browser-executor/      Playwright/CDP executor
   audit-log/              JSONL trace store
+  task-suite/              M4 benchmark task suite (fixtures + success checks)
+  benchmark/                M4 baseline experiment harness (direct vs agentic control)
 apps/
   browser-shell/    orchestrator + feedback UI (public/)
+  benchmark-cli/     `npm run benchmark` entry point
 ```
 
 Each package/app is an npm workspace (`npm install` at the repo root installs

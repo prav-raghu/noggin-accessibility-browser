@@ -1,0 +1,19 @@
+{
+  "name": "@noggin/benchmark",
+  "version": "0.1.0",
+  "private": true,
+  "description": "M4 baseline experiment harness (spec section 15): runs the task suite under a direct-control baseline and under agentic intent control (planner + safety gateway) and reports the spec's primary measures - success rate, time, control-event count and confirmation burden.",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "dependencies": {
+    "@noggin/agent-planner": "*",
+    "@noggin/browser-executor": "*",
+    "@noggin/intent-contract": "*",
+    "@noggin/safety-gateway": "*",
+    "@noggin/task-suite": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}

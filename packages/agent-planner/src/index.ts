@@ -59,7 +59,7 @@ function action(
 }
 
 /** One entry in the StubPlanner's small rule table. */
-interface GoalRule {
+export interface GoalRule {
   /** Human name, used in the interpreted goal string. */
   name: string;
   /** All of these concept tokens must be present (case-insensitive) to match. */
@@ -109,10 +109,21 @@ const GOAL_RULES: GoalRule[] = [
  * calling over BrowserActionType) once M1 needs open-ended tasks.
  */
 export class StubPlanner implements Planner {
+  /**
+   * Rules checked before the built-in table, in order. Lets callers that need their own
+   * closed task set (e.g. the benchmark harness's fixture tasks) extend the planner
+   * without forking it or reaching into its private rule table.
+   */
+  private readonly rules: GoalRule[];
+
+  constructor(extraRules: GoalRule[] = []) {
+    this.rules = [...extraRules, ...GOAL_RULES];
+  }
+
   async plan(intent: IntentEvent, _context: PlanningContext): Promise<Plan | null> {
     const lowerConcepts = intent.concepts.map((c) => c.toLowerCase());
 
-    const rule = GOAL_RULES.find((r) =>
+    const rule = this.rules.find((r) =>
       r.requiredConcepts.every((required) => lowerConcepts.includes(required)),
     );
 

@@ -1,0 +1,17 @@
+{
+  "name": "@noggin/task-suite",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Offline, reproducible benchmark task suite (spec section 13 step 5 / M4): media navigation, search, form completion and information retrieval, each as a self-contained data: URL fixture with a success verifier and a matching agent-planner GoalRule.",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "dependencies": {
+    "@noggin/agent-planner": "*",
+    "@noggin/browser-executor": "*",
+    "@noggin/intent-contract": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}

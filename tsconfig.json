@@ -7,6 +7,9 @@
     { "path": "packages/agent-planner" },
     { "path": "packages/browser-executor" },
     { "path": "packages/audit-log" },
-    { "path": "apps/browser-shell" }
+    { "path": "packages/task-suite" },
+    { "path": "packages/benchmark" },
+    { "path": "apps/browser-shell" },
+    { "path": "apps/benchmark-cli" }
   ]
 }

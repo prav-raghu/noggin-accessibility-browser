@@ -12,6 +12,8 @@
   "scripts": {
     "dev": "npm run dev --workspace @noggin/browser-shell",
     "dev:headed": "NOGGIN_HEADLESS=false npm run dev --workspace @noggin/browser-shell",
+    "benchmark": "npm run benchmark --workspace @noggin/benchmark-cli",
+    "benchmark:headed": "NOGGIN_HEADLESS=false npm run benchmark --workspace @noggin/benchmark-cli",
     "typecheck": "tsc -b tsconfig.json",
     "lint": "eslint . --ext .ts",
     "test": "node --import tsx --test packages/*/src/**/*.test.ts apps/*/src/**/*.test.ts",

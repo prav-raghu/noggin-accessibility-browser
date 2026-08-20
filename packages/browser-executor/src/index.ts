@@ -117,6 +117,16 @@ export class BrowserExecutor {
     return this.requirePage().screenshot();
   }
 
+  /**
+   * Run a page-scoped function and return its result. Not part of the BrowserAction
+   * vocabulary (a real intent-driven agent never gets arbitrary script execution) - this
+   * exists for callers that already know exactly what they're checking, such as the
+   * benchmark harness verifying task success against fixture-page DOM state.
+   */
+  async evaluate<T>(pageFunction: () => T): Promise<T> {
+    return this.requirePage().evaluate(pageFunction);
+  }
+
   /** Backs the spec section 12 "Undo last reversible action" command for Tier 1 nav. */
   async goBack(): Promise<PageContext> {
     const page = this.requirePage();
@@ -172,6 +182,19 @@ export class BrowserExecutor {
           .first();
         await locator.click({ timeout: 5000 });
         return this.ok(action, `clicked role="${role}"${nameContains ? ` name~="${nameContains}"` : ""}`);
+      }
+
+      case BrowserActionType.FILL_FIELD: {
+        const role = requireStringParam(action, "role");
+        const nameContains = optionalStringParam(action, "nameContains");
+        const value = requireStringParam(action, "value");
+        const locator = page
+          .getByRole(role as Parameters<Page["getByRole"]>[0], {
+            name: nameContains ? new RegExp(escapeRegExp(nameContains), "i") : undefined,
+          })
+          .first();
+        await locator.fill(value, { timeout: 5000 });
+        return this.ok(action, `filled role="${role}"${nameContains ? ` name~="${nameContains}"` : ""} with "${value}"`);
       }
 
       case BrowserActionType.PLAY_PAUSE_MEDIA: {

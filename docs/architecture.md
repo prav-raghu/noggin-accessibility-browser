@@ -41,6 +41,54 @@ serves the feedback UI (`apps/browser-shell/public`) that shows the current inte
 intent, confidence, agent state (listening / paused / planning / acting) and exposes
 Stop / Confirm / Reject / Explain controls.
 
+## M4: the baseline experiment
+
+Milestone M4 ("Direct-control vs agentic-control benchmark runs reproducibly") is
+implemented as two more packages plus a CLI, sitting alongside the pipeline above rather
+than inside it:
+
+```
+ ┌────────────────┐
+ │ task-suite      │  4 offline data:-URL fixture tasks (spec section 13 step 5):
+ │                 │  media navigation, search, form completion, information retrieval.
+ │                 │  Each task = canonical BrowserAction[] steps + a DOM-level
+ │                 │  success check + a matching agent-planner GoalRule.
+ └────────┬────────┘
+          │
+          ▼
+ ┌────────────────┐   Condition A (direct_control): execute `steps` one at a time,
+ │ benchmark       │   one control event per step - no planner/gateway involved.
+ │ (harness.ts)    │
+ │                 │   Condition B (agentic_intent_control): one sparse EXECUTE_GOAL
+ │                 │   intent through the real StubPlanner + SafetyGateway; each
+ │                 │   needs_confirmation decision costs one more control event from
+ │                 │   an always-cooperative simulated user.
+ └────────┬────────┘
+          │ RunMetrics[] (spec section 15 primary measures)
+          ▼
+ ┌────────────────┐
+ │ benchmark-cli   │  npm run benchmark - prints + writes JSON/markdown to run-data/
+ └────────────────┘
+```
+
+Both conditions execute the *same* underlying action sequence per task - the only thing
+the harness varies is how many discrete user control events it costs to authorize that
+sequence. That's what keeps the A-vs-B comparison (spec H1) fair: a difference in control
+events reflects the mediation layer, not a difference in what the browser actually does.
+
+The harness talks to the real `StubPlanner` and `SafetyGateway` classes used by
+`apps/browser-shell`, not a re-implementation of their decision logic - a change to risk
+tiering or confirmation policy shows up in benchmark results automatically. It does not
+go through `SimulatedBciAdapter`/the orchestrator's event plumbing, since the benchmark
+needs synchronous, per-run control over confidence and confirmation rather than
+timer/listener-driven ones.
+
+This is intentionally still Condition A/B, not spec section 15's Condition C
+("agentic + uncertainty policy"): the harness always uses a fixed high confidence per
+task and an always-cooperative simulated confirmer. Confidence sweeps and an
+uncertainty-aware confirmer are natural M4 follow-ups once M5 (live BCI, real
+uncertainty) makes that distinction matter empirically.
+
 ## Spec architecture table → code
 
 | Spec layer | Spec candidate tech | This repo |
@@ -103,3 +151,13 @@ honestly-scoped claims (section 18, section 25):
 - **Feedback UI is a minimal control panel**, not a full accessible Chromium UI (screen
   reader / high-contrast / switch-scanning support per section 12 is only partially
   covered — it's plain semantic HTML with `aria-live` regions, not yet audited).
+- **The M4 benchmark suite is 4 offline fixture tasks, not the "controlled task set"
+  section 13/24 eventually asks for.** It's enough to validate the harness and produce a
+  real, reproducible A-vs-B number (see `docs/architecture.md`'s M4 section above), but
+  it doesn't yet cover a human-participant study, live web targets, or Condition C
+  ("agentic + uncertainty policy") - those are M6 territory.
+- **`browser-executor`'s action vocabulary covers only what the task suite and the
+  StubPlanner's rule table need** (`fill_field` was added alongside M4 for the form
+  fixture). Tier 2+ actions (`send_message`, `purchase`, `delete_account`,
+  `change_permissions`) still have no generic implementation - see the
+  `NotImplementedActionError` comment in `packages/browser-executor/src/index.ts`.
