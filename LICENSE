@@ -1,0 +1,89 @@
+ZYNKOSI TECH PROPRIETARY SOFTWARE LICENSE
+
+Copyright (c) 2025–2026 Zynkosi Tech (Pty) Ltd.
+All rights reserved.
+
+────────────────────────────────────────────────────────────────────────────────
+
+NOTICE: This software and all associated source code, documentation, assets,
+configuration files, scripts, and any other materials contained in this
+repository (collectively, the "Software") are the exclusive proprietary
+property of Zynkosi Tech (Pty) Ltd., and where applicable,
+the client that commissioned or paid for the development of the Software
+("Client"). All rights not expressly granted herein are reserved.
+
+────────────────────────────────────────────────────────────────────────────────
+
+1.  RESTRICTIONS
+
+    This Software is NOT open source and is NOT licensed under any open-source
+    or free software license. The following actions are strictly prohibited
+    without the express prior written consent of Zynkosi Tech:
+
+    (a) Copying, reproducing, or duplicating the Software in whole or in part;
+    (b) Distributing, publishing, sublicensing, selling, or transferring the
+    Software or any portion thereof to any third party;
+    (c) Modifying, adapting, translating, or creating derivative works based on
+    the Software;
+    (d) Reverse engineering, decompiling, disassembling, or otherwise attempting
+    to derive the source code or underlying logic of any compiled components;
+    (e) Using the Software for any purpose outside the scope of the agreement
+    between Zynkosi Tech and the Client;
+    (f) Removing or altering any proprietary notices, labels, or markings on the
+    Software.
+
+2.  OWNERSHIP
+
+    The Software is and shall remain the sole and exclusive property of Pravir
+    Raghu and Zynkosi Tech (Pty) Ltd. Where a Client has commissioned and paid
+    for the development of specific deliverables, the Client is granted a
+    limited, non-exclusive, non-transferable licence to use those deliverables
+    as agreed in the applicable service agreement or contract. Such licence does
+    not transfer ownership of the underlying Software, codebase, frameworks,
+    tools, or intellectual property developed or used by Zynkosi Tech.
+
+3.  CONFIDENTIALITY
+
+    This repository and its contents are private and confidential. Unauthorised
+    access, disclosure, or use of any part of this Software is strictly
+    prohibited and may constitute a violation of applicable laws, including but
+    not limited to the Protection of Personal Information Act, 2013 (POPIA) and
+    intellectual property legislation in the Republic of South Africa.
+
+4.  NO WARRANTIES
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED. ZYNKOSI TECH AND PRAVIR RAGHU DISCLAIM ALL WARRANTIES INCLUDING
+    BUT NOT LIMITED TO MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
+    NON-INFRINGEMENT, EXCEPT WHERE EXPRESSLY AGREED IN A SEPARATE WRITTEN
+    AGREEMENT WITH THE CLIENT.
+
+5.  LIMITATION OF LIABILITY
+
+    IN NO EVENT SHALL PRAVIR RAGHU OR ZYNKOSI TECH BE LIABLE FOR ANY INDIRECT,
+    INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES ARISING FROM OR
+    IN CONNECTION WITH THE USE OR INABILITY TO USE THIS SOFTWARE, EVEN IF
+    ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+6.  GOVERNING LAW
+
+    This licence shall be governed by and construed in accordance with the laws
+    of the Republic of South Africa. Any disputes arising under or in connection
+    with this licence shall be subject to the exclusive jurisdiction of the
+    courts of KwaZulu-Natal, South Africa.
+
+7.  CONTACT
+
+    For licensing enquiries, permissions, or to report unauthorised use, please
+    contact:
+
+        Zynkosi Tech (Pty) Ltd.
+        Durban, KwaZulu-Natal, South Africa
+        Email: [info@zynkositech.co.za]
+
+────────────────────────────────────────────────────────────────────────────────
+
+UNAUTHORISED USE, COPYING, OR DISTRIBUTION OF THIS SOFTWARE IS STRICTLY
+PROHIBITED AND MAY RESULT IN CIVIL AND/OR CRIMINAL PROSECUTION.
+
+────────────────────────────────────────────────────────────────────────────────
