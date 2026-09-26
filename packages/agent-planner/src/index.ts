@@ -162,5 +162,10 @@ export class StubPlanner implements Planner {
 
 export { redactSecrets, SecretVault } from "./secret-vault.js";
 export type { RedactionResult } from "./secret-vault.js";
-export { LlmPlanner, AnthropicLlmClient } from "./llm-planner.js";
-export type { LlmClient, LlmPlannerConfig } from "./llm-planner.js";
+export { LlmPlanner, AnthropicLlmClient, OllamaLlmClient } from "./llm-planner.js";
+export type {
+  LlmClient,
+  LlmPlannerConfig,
+  AnthropicLlmClientConfig,
+  OllamaLlmClientConfig,
+} from "./llm-planner.js";

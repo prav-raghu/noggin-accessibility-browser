@@ -33,9 +33,11 @@ simulated-bci -> agent-planner -> safety-gateway -> browser-executor -> audit-lo
   events with configurable confidence jitter and command error injection, standing in
   for a live EEG decoder.
 - **`packages/agent-planner`** — a `Planner` interface, a deterministic rule-based
-  `StubPlanner` (no external LLM calls, the default) that turns a sparse intent into an
-  ordered plan of browser actions, and an `LlmPlanner` that calls Claude (tool calling)
-  to plan open-ended free-text goals instead - set `ANTHROPIC_API_KEY` to opt in.
+  `StubPlanner` (no external LLM calls, the fallback) that turns a sparse intent into an
+  ordered plan of browser actions, and an `LlmPlanner` (tool calling) that plans
+  open-ended free-text goals instead - over a free local model via Ollama
+  (`NOGGIN_OLLAMA_MODEL`, recommended) or Claude via the Anthropic API
+  (`ANTHROPIC_API_KEY`).
 - **`packages/safety-gateway`** — deterministic risk-tier policy engine: auto-approval,
   confirmation, or refusal per action risk tier, plus the hard STOP pathway that bypasses
   the planner entirely and a confirmation timeout that only ever cancels, never
@@ -63,11 +65,24 @@ npm run dev          # launch the pipeline + control panel (headless Chromium by
 ```
 
 Then open `http://localhost:4173` for the control panel. It has a text box to type an
-open-ended goal (e.g. "open youtube and watch some sumo") - with `ANTHROPIC_API_KEY` set
-this is planned by `LlmPlanner`; without it, only `StubPlanner`'s narrow keyword rules
-apply. If your terminal is a TTY, keyboard shortcuts also work directly: `1`-`4` trigger
-a preset goal, `s`/`Esc` = STOP, `y` = CONFIRM, `n` = REJECT, `q` = QUERY_INTENT
+open-ended goal (e.g. "open youtube and watch some sumo") - with an LLM configured (see
+below) this is planned by `LlmPlanner`; without one, only `StubPlanner`'s narrow keyword
+rules apply. If your terminal is a TTY, keyboard shortcuts also work directly: `1`-`4`
+trigger a preset goal, `s`/`Esc` = STOP, `y` = CONFIRM, `n` = REJECT, `q` = QUERY_INTENT
 (explain), `u` = UNDO.
+
+### Planning open-ended goals for free, locally, via Ollama (recommended)
+
+`LlmPlanner` doesn't need a paid API - [Ollama](https://ollama.com) runs open-weight
+models (Llama 3.1, Qwen2.5, Mistral-Nemo, etc.) entirely on your own machine for free,
+with no rate limit tied to a cloud account. Only a handful of Ollama's models actually
+support tool calling; `llama3.1` is a solid default.
+
+```bash
+ollama pull llama3.1
+ollama serve                    # usually already running as a background service
+NOGGIN_OLLAMA_MODEL=llama3.1 npm run dev
+```
 
 Useful env vars (see `apps/browser-shell/src/main.ts`):
 
@@ -76,8 +91,11 @@ Useful env vars (see `apps/browser-shell/src/main.ts`):
 | `NOGGIN_HEADLESS` | `true` | Set `false` to run Chromium headed (needs a display) |
 | `NOGGIN_PORT` | `4173` | Feedback UI port |
 | `NOGGIN_ERROR_RATE` | `0` | Simulated BCI command misclassification rate, `0`-`1` |
-| `ANTHROPIC_API_KEY` | unset | If set, use `LlmPlanner` (open-ended free-text goals) instead of `StubPlanner` |
-| `NOGGIN_LLM_MODEL` | `claude-haiku-4-5-20251001` | Model id for `LlmPlanner`, only used when `ANTHROPIC_API_KEY` is set |
+| `NOGGIN_OLLAMA_MODEL` | unset | If set, use `LlmPlanner` over a free local Ollama model (e.g. `llama3.1`) |
+| `NOGGIN_LLM_BASE_URL` | `http://localhost:11434/v1` | Override for `NOGGIN_OLLAMA_MODEL` - also works against any other OpenAI-compatible local server (llama.cpp, LM Studio, vLLM) |
+| `ANTHROPIC_API_KEY` | unset | If set (and no `NOGGIN_OLLAMA_MODEL`), use `LlmPlanner` over the paid Anthropic API instead |
+| `NOGGIN_LLM_MODEL` | `claude-haiku-4-5-20251001` | Model id, only used with `ANTHROPIC_API_KEY` |
+| `NOGGIN_LLM_PROVIDER` | unset | Force `"ollama"`, `"anthropic"` or `"stub"`, overriding the auto-detection above |
 
 `npm run dev:headed` is a shortcut for `NOGGIN_HEADLESS=false npm run dev`.
 

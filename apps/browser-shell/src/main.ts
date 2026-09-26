@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 import { JsonlAuditStore } from "@noggin/audit-log";
 import { BrowserExecutor } from "@noggin/browser-executor";
 import { BrowserActionType } from "@noggin/intent-contract";
-import { AnthropicLlmClient, LlmPlanner, StubPlanner, type Planner } from "@noggin/agent-planner";
+import { AnthropicLlmClient, LlmPlanner, OllamaLlmClient, StubPlanner, type Planner } from "@noggin/agent-planner";
 import { SafetyGateway } from "@noggin/safety-gateway";
 import { SimulatedBciAdapter } from "@noggin/simulated-bci";
 import { Orchestrator } from "./orchestrator.js";
@@ -29,23 +29,64 @@ function envBool(name: string, fallback: boolean): boolean {
 }
 
 /**
- * `StubPlanner` remains the default so the pipeline still runs with zero external API
- * calls or cost (README/architecture.md). Setting ANTHROPIC_API_KEY opts into the real
- * `LlmPlanner`, which understands open-ended free-text goals instead of only the small
- * hand-coded rule table - see packages/agent-planner/src/llm-planner.ts.
+ * `StubPlanner` remains the fallback so the pipeline always runs with zero external API
+ * calls or cost even when nothing is configured (README/architecture.md). Beyond that,
+ * three ways to get the real `LlmPlanner` (open-ended free-text goals instead of only
+ * the small hand-coded rule table - see packages/agent-planner/src/llm-planner.ts),
+ * chosen by what's set:
+ *
+ *   NOGGIN_OLLAMA_MODEL=llama3.1   free, open-weight, runs locally via `ollama serve` -
+ *                                  the recommended default for planning "all the time"
+ *                                  with no per-call cost or external API dependency.
+ *   ANTHROPIC_API_KEY=sk-...       Claude via the Anthropic API - a paid alternative if
+ *                                  you want a larger model than what's practical to run
+ *                                  locally.
+ *   NOGGIN_LLM_PROVIDER=stub       explicit override to force StubPlanner even if the
+ *                                  above are set (e.g. for a deterministic CI run).
+ *
+ * If both NOGGIN_OLLAMA_MODEL and ANTHROPIC_API_KEY are set without an explicit
+ * NOGGIN_LLM_PROVIDER, Ollama wins - it's free, so there's no reason to default to the
+ * paid option.
  */
 function buildPlanner(): Planner {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    console.log("[browser-shell] ANTHROPIC_API_KEY not set - using the rule-based StubPlanner");
-    return new StubPlanner();
+  const provider = process.env.NOGGIN_LLM_PROVIDER?.toLowerCase();
+  const ollamaModel = process.env.NOGGIN_OLLAMA_MODEL;
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+
+  const useOllama = provider === "ollama" || (!provider && Boolean(ollamaModel));
+  const useAnthropic = provider === "anthropic" || (!provider && !ollamaModel && Boolean(anthropicKey));
+
+  if (useOllama) {
+    if (!ollamaModel) {
+      throw new Error("NOGGIN_LLM_PROVIDER=ollama requires NOGGIN_OLLAMA_MODEL to be set (e.g. \"llama3.1\")");
+    }
+    console.log(
+      `[browser-shell] using LlmPlanner over a free, local Ollama model (model=${ollamaModel}, ` +
+        `baseUrl=${process.env.NOGGIN_LLM_BASE_URL ?? "http://localhost:11434/v1"}) - ` +
+        "make sure `ollama serve` is running and the model has been pulled",
+    );
+    return new LlmPlanner({
+      client: new OllamaLlmClient({ model: ollamaModel, baseUrl: process.env.NOGGIN_LLM_BASE_URL }),
+    });
   }
+
+  if (useAnthropic) {
+    if (!anthropicKey) {
+      throw new Error("NOGGIN_LLM_PROVIDER=anthropic requires ANTHROPIC_API_KEY to be set");
+    }
+    console.log(
+      `[browser-shell] using LlmPlanner over the Anthropic API (model=${process.env.NOGGIN_LLM_MODEL ?? "default"})`,
+    );
+    return new LlmPlanner({
+      client: new AnthropicLlmClient({ apiKey: anthropicKey, model: process.env.NOGGIN_LLM_MODEL }),
+    });
+  }
+
   console.log(
-    `[browser-shell] ANTHROPIC_API_KEY set - using LlmPlanner (model=${process.env.NOGGIN_LLM_MODEL ?? "default"})`,
+    "[browser-shell] no LLM configured - using the rule-based StubPlanner " +
+      "(set NOGGIN_OLLAMA_MODEL for a free local model, or ANTHROPIC_API_KEY for Claude)",
   );
-  return new LlmPlanner({
-    client: new AnthropicLlmClient({ apiKey, model: process.env.NOGGIN_LLM_MODEL }),
-  });
+  return new StubPlanner();
 }
 
 async function main(): Promise<void> {

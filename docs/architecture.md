@@ -90,14 +90,24 @@ honestly-scoped claims (section 18, section 25):
 - **LLM planner exists but is opt-in, not the default.** `packages/agent-planner`'s
   `LlmPlanner` (`llm-planner.ts`) turns an open-ended free-text goal - "open YouTube and
   watch some sumo", "google best vegan recipes", "log into Facebook with my email and
-  password" - into a `BrowserAction[]` plan via a tool-calling call to Claude
-  (`AnthropicLlmClient`, plain `fetch`, no SDK dependency). It only activates when
+  password" - into a `BrowserAction[]` plan via a tool-calling call to an LLM, behind the
+  same `LlmClient` seam regardless of which one: `OllamaLlmClient` (free, open-weight,
+  runs locally via `ollama serve`, no SDK - recommended default, since planning "all the
+  time" shouldn't imply a per-call bill) or `AnthropicLlmClient` (Claude via the paid
+  Anthropic API, for when a larger model is worth the cost). Both use plain `fetch`, no
+  vendor SDK dependency. It only activates when `NOGGIN_OLLAMA_MODEL` or
   `ANTHROPIC_API_KEY` is set (`apps/browser-shell/src/main.ts`); otherwise the pipeline
   still runs on the zero-cost, zero-network `StubPlanner`, matching the "runs with zero
   external API calls" MVP goal. The `LlmPlanner` never gets to weaken safety: it cannot
   set a step's risk tier at all (the schema it's forced to return has no such field),
   and `planRiskTier` in `@noggin/intent-contract` independently clamps every step to its
   `DEFAULT_ACTION_RISK` floor regardless of what any planner claims.
+  - **Not every open model supports tool calling.** Ollama documents only a handful
+    (llama3.1, llama3.2, qwen2.5, mistral-nemo, firefunction-v2, command-r) as capable of
+    it; an arbitrary model asked to plan will just reply with prose instead of the forced
+    `propose_plan` call, which surfaces as a validation failure and a "please restate the
+    goal" clarification rather than a crash - but it does mean model choice matters here
+    in a way it doesn't for the cloud option.
   - **Credential redaction.** A goal that embeds a password (e.g. a "login with
     username X and password Y" command) is redacted (`secret-vault.ts`) before it ever
     reaches the LLM or the audit log - the model only sees a `{{SECRET_n}}` placeholder,

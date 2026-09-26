@@ -1,8 +1,19 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { afterEach, test } from "node:test";
 import { createIntentEvent, IntentCommand, planRiskTier, RiskTier } from "@noggin/intent-contract";
-import { LlmPlanner, type LlmClient } from "./llm-planner.js";
+import { LlmPlanner, OllamaLlmClient, type LlmClient } from "./llm-planner.js";
 import { redactSecrets, SecretVault } from "./secret-vault.js";
+
+const originalFetch = globalThis.fetch;
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+});
+
+/** Stubs global fetch with a canned JSON response for the OllamaLlmClient tests below. */
+function stubFetch(body: unknown, status = 200): void {
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify(body), { status })) as typeof fetch;
+}
 
 function goalIntent(text: string, confidence = 1) {
   return createIntentEvent({
@@ -154,6 +165,64 @@ test("returns null for an empty goal without calling the LLM", async () => {
   const plan = await planner.plan(goalIntent(""), {});
   assert.equal(plan, null);
   assert.equal(called, false);
+});
+
+test("OllamaLlmClient parses Ollama-native tool calls (already-parsed object arguments)", async () => {
+  stubFetch({
+    choices: [
+      {
+        message: {
+          tool_calls: [
+            {
+              function: {
+                name: "propose_plan",
+                arguments: { goal: "x", steps: [{ type: "navigate", params: {}, description: "d" }] },
+              },
+            },
+          ],
+        },
+      },
+    ],
+  });
+
+  const client = new OllamaLlmClient({ model: "llama3.1" });
+  const result = await client.proposePlan({ system: "s", user: "u" });
+  assert.deepEqual(result, { goal: "x", steps: [{ type: "navigate", params: {}, description: "d" }] });
+});
+
+test("OllamaLlmClient parses OpenAI-style tool calls (JSON-stringified arguments)", async () => {
+  stubFetch({
+    choices: [
+      {
+        message: {
+          tool_calls: [
+            {
+              function: {
+                name: "propose_plan",
+                arguments: JSON.stringify({ goal: "x", steps: [] }),
+              },
+            },
+          ],
+        },
+      },
+    ],
+  });
+
+  const client = new OllamaLlmClient({ model: "llama3.1" });
+  const result = await client.proposePlan({ system: "s", user: "u" });
+  assert.deepEqual(result, { goal: "x", steps: [] });
+});
+
+test("OllamaLlmClient throws a clear error when the model didn't call the tool", async () => {
+  stubFetch({ choices: [{ message: {} }] });
+  const client = new OllamaLlmClient({ model: "some-model-without-tool-support" });
+  await assert.rejects(() => client.proposePlan({ system: "s", user: "u" }), /did not return/);
+});
+
+test("OllamaLlmClient throws on a non-ok HTTP response", async () => {
+  stubFetch({ error: "model not found" }, 404);
+  const client = new OllamaLlmClient({ model: "not-pulled" });
+  await assert.rejects(() => client.proposePlan({ system: "s", user: "u" }), /404/);
 });
 
 test("redactSecrets extracts a password and leaves the rest of the sentence intact", () => {
