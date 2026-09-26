@@ -80,4 +80,14 @@ document.getElementById("goal-buttons").addEventListener("click", (event) => {
   if (preset) send({ type: "trigger_goal", preset });
 });
 
+const goalForm = document.getElementById("goal-form");
+const goalInput = document.getElementById("goal-input");
+goalForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const text = goalInput.value.trim();
+  if (!text) return;
+  send({ type: "trigger_free_text_goal", text });
+  goalInput.value = "";
+});
+
 connect();

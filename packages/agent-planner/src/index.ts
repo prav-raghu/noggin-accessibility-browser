@@ -31,6 +31,15 @@ export interface Planner {
    * orchestrator should ask the user for clarification instead of guessing.
    */
   plan(intent: IntentEvent, context: PlanningContext): Promise<Plan | null>;
+
+  /**
+   * Optional hook: resolve any planner-owned placeholders in one step's params
+   * immediately before execution (e.g. `LlmPlanner` substituting a redacted credential
+   * back in via its `SecretVault`, see secret-vault.ts). Defaults to identity - the
+   * orchestrator calls `this.planner.resolveParams?.(step) ?? step.params` and must
+   * keep logging/publishing the original (placeholder) step, never the resolved one.
+   */
+  resolveParams?(action: BrowserAction): Record<string, unknown>;
 }
 
 let planCounter = 0;
@@ -150,3 +159,8 @@ export class StubPlanner implements Planner {
     };
   }
 }
+
+export { redactSecrets, SecretVault } from "./secret-vault.js";
+export type { RedactionResult } from "./secret-vault.js";
+export { LlmPlanner, AnthropicLlmClient } from "./llm-planner.js";
+export type { LlmClient, LlmPlannerConfig } from "./llm-planner.js";

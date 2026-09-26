@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { AgentState, createIntentEvent, IntentCommand } from "@noggin/intent-contract";
-import type { IntentEvent } from "@noggin/intent-contract";
+import { AgentState, BrowserActionType, createIntentEvent, IntentCommand } from "@noggin/intent-contract";
+import type { IntentEvent, Plan } from "@noggin/intent-contract";
 import { NullAuditStore } from "@noggin/audit-log";
+import type { Planner } from "@noggin/agent-planner";
 import { SimulatedBciAdapter } from "@noggin/simulated-bci";
 import type { ActionResult, BrowserExecutor, PageContext } from "@noggin/browser-executor";
 import type { BrowserAction } from "@noggin/intent-contract";
@@ -108,6 +109,70 @@ test("EXECUTE_GOAL is ignored while paused", async () => {
     intent({ intent: IntentCommand.EXECUTE_GOAL, concepts: ["youtube"], confidence: 1 }),
   );
   assert.equal(orchestrator.getSnapshot().state, AgentState.PAUSED);
+});
+
+test("a planner's resolveParams is used for the live executor call but never for the audit/UI-visible result", async () => {
+  const executedParams: Record<string, unknown>[] = [];
+  const context: PageContext = { url: "https://example.test/", title: "Example" };
+  const executor = {
+    async getPageContext(): Promise<PageContext> {
+      return context;
+    },
+    async execute(action: BrowserAction): Promise<ActionResult> {
+      executedParams.push(action.params);
+      return { action, ok: true, detail: `executed ${action.type}`, context };
+    },
+    async goBack(): Promise<PageContext> {
+      return context;
+    },
+  } as unknown as BrowserExecutor;
+
+  const redactedPlan: Plan = {
+    id: "plan-1",
+    sourceIntentId: "intent-1",
+    goal: "log into a fake site",
+    steps: [
+      {
+        id: "step-1",
+        type: BrowserActionType.FILL_FIELD,
+        params: { value: "{{SECRET_1}}", fieldType: "password" },
+        riskTier: 1,
+        description: "Fill in the password field",
+      },
+    ],
+  };
+
+  const planner: Planner = {
+    async plan(): Promise<Plan> {
+      return redactedPlan;
+    },
+    resolveParams(action: BrowserAction): Record<string, unknown> {
+      return { ...action.params, value: "the-real-password" };
+    },
+  };
+
+  const results: ActionResult[] = [];
+  const bci = new SimulatedBciAdapter({ session: "test" });
+  const orchestrator = new Orchestrator({
+    sessionId: "test-session",
+    executor,
+    audit: new NullAuditStore(),
+    bci,
+    planner,
+  });
+  orchestrator.onUpdate((u) => {
+    if (u.lastActionResult) results.push(u.lastActionResult);
+  });
+
+  await orchestrator.handleIntent(
+    intent({ intent: IntentCommand.EXECUTE_GOAL, concepts: ["log", "in"], confidence: 1 }),
+  );
+
+  // The live executor call must have received the resolved (real) value.
+  assert.equal(executedParams[0]?.value, "the-real-password");
+  // But everything published for audit/UI must keep the original placeholder - the
+  // resolved value must never leak into a logged or displayed ActionResult.
+  assert.equal(results[0]?.action.params.value, "{{SECRET_1}}");
 });
 
 test("the simulated-bci adapter's automatic wiring reaches the orchestrator exactly once per trigger", async () => {

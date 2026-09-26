@@ -9,6 +9,7 @@
  *   client -> server: { type: "stop" | "pause" | "resume" | "confirm" | "reject" |
  *                        "undo" | "query_intent" }
  *                     { type: "trigger_goal", preset: "1" | "2" | "3" | "4" }
+ *                     { type: "trigger_free_text_goal", text: "open youtube and watch some sumo" }
  */
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
@@ -54,6 +55,7 @@ async function serveStatic(req: IncomingMessage, res: ServerResponse): Promise<v
 interface ClientMessage {
   type: string;
   preset?: string;
+  text?: string;
 }
 
 export function startServer(orchestrator: Orchestrator, port: number) {
@@ -112,6 +114,17 @@ export function startServer(orchestrator: Orchestrator, port: number) {
         case "trigger_goal":
           if (msg.preset) orchestrator.bci.triggerGoal(msg.preset);
           break;
+        case "trigger_free_text_goal": {
+          const text = msg.text?.trim();
+          if (!text) break;
+          // Split into whitespace tokens rather than one long string: IntentEvent.concepts
+          // is a structured token array (spec section 9), and StubPlanner's keyword
+          // matching needs exact tokens like "youtube" - LlmPlanner rejoins them with
+          // intent.concepts.join(" ") so it sees the original phrase either way.
+          // confidence: 1 - this came from an explicit typed command, not a noisy decoder.
+          orchestrator.bci.trigger(IntentCommand.EXECUTE_GOAL, text.split(/\s+/), { confidence: 1 });
+          break;
+        }
         default:
           break;
       }

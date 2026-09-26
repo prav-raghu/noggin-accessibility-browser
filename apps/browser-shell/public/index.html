@@ -57,6 +57,23 @@
       </div>
     </section>
 
+    <!-- Stand-in for a decoder that could emit a full sentence. Only meaningfully
+         understood when the LlmPlanner is active (ANTHROPIC_API_KEY set) - with the
+         default StubPlanner this only works for its narrow keyword rules. -->
+    <section aria-label="Type a free-form goal" class="panel">
+      <h2>Or type a goal</h2>
+      <form id="goal-form" class="controls">
+        <label class="visually-hidden" for="goal-input">Goal</label>
+        <input
+          id="goal-input"
+          type="text"
+          placeholder="e.g. open youtube and watch some sumo"
+          autocomplete="off"
+        />
+        <button class="btn" type="submit">Send</button>
+      </form>
+    </section>
+
     <section aria-label="Event trace" class="panel">
       <h2>Trace</h2>
       <ul id="log" aria-live="off"></ul>

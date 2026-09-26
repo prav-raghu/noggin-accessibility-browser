@@ -218,7 +218,14 @@ export class Orchestrator {
     this.setState(AgentState.ACTING, `executing: ${plan.goal}`);
     for (const step of plan.steps) {
       try {
-        const result = await this.executor.execute(step);
+        // `resolveParams` lets a planner (e.g. LlmPlanner) substitute a redacted
+        // credential placeholder back to its real value for the live call only - the
+        // audit log and feedback UI below must keep logging/publishing `step` itself
+        // (placeholder intact), never a resolved copy, or a secret would land on disk.
+        const resolvedParams = this.planner.resolveParams?.(step) ?? step.params;
+        const liveAction = resolvedParams === step.params ? step : { ...step, params: resolvedParams };
+        const executed = await this.executor.execute(liveAction);
+        const result = executed.action === step ? executed : { ...executed, action: step };
         this.lastActionResult = result;
         await this.audit.record({
           type: AuditEventType.EXECUTED_ACTION,

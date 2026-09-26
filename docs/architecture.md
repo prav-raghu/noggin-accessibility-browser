@@ -87,10 +87,34 @@ STOP pathway short-circuits the gateway entirely rather than routing through it.
 These are flagged rather than silently deferred, per the spec's emphasis on auditable,
 honestly-scoped claims (section 18, section 25):
 
-- **No live LLM call.** `agent-planner`'s default `StubPlanner` is rule-based
-  (concept-token matching), matching the "structured concepts + small command
-  vocabulary" framing in section 7, not a general-purpose tool-calling LLM. The
-  `Planner` interface is the seam for M1's "LLM can navigate a controlled task set."
+- **LLM planner exists but is opt-in, not the default.** `packages/agent-planner`'s
+  `LlmPlanner` (`llm-planner.ts`) turns an open-ended free-text goal - "open YouTube and
+  watch some sumo", "google best vegan recipes", "log into Facebook with my email and
+  password" - into a `BrowserAction[]` plan via a tool-calling call to Claude
+  (`AnthropicLlmClient`, plain `fetch`, no SDK dependency). It only activates when
+  `ANTHROPIC_API_KEY` is set (`apps/browser-shell/src/main.ts`); otherwise the pipeline
+  still runs on the zero-cost, zero-network `StubPlanner`, matching the "runs with zero
+  external API calls" MVP goal. The `LlmPlanner` never gets to weaken safety: it cannot
+  set a step's risk tier at all (the schema it's forced to return has no such field),
+  and `planRiskTier` in `@noggin/intent-contract` independently clamps every step to its
+  `DEFAULT_ACTION_RISK` floor regardless of what any planner claims.
+  - **Credential redaction.** A goal that embeds a password (e.g. a "login with
+    username X and password Y" command) is redacted (`secret-vault.ts`) before it ever
+    reaches the LLM or the audit log - the model only sees a `{{SECRET_n}}` placeholder,
+    and the `Planner.resolveParams` hook lets the orchestrator substitute the real value
+    back in only for the live `browser-executor` call, immediately before use
+    (`Orchestrator.runPlan`). This is regex-based on the "password/pwd/passcode" keyword
+    family, not a general secret scanner - a real product would replace it with a local
+    password-manager/autofill integration instead of ever routing secrets through a
+    goal string at all.
+  - **Login as a plan shape, not a special case.** There's no bespoke "login" action.
+    `FILL_FIELD` (new, Tier 1 - reversible, nothing is sent to the page's server yet)
+    lets a plan type into arbitrary fields, and the existing `SUBMIT_FORM` (Tier 2)
+    is what actually transmits the form. Because the safety gateway gates on a plan's
+    *highest* step risk tier before any step runs, a login-shaped plan auto-fills
+    nothing until the user has explicitly previewed and confirmed the whole plan -
+    "fill email, fill password, submit" - matching spec section 10's "Preview +
+    explicit confirmation" for Tier 2, without any planner-specific gateway logic.
 - **No live EEG / BCI hardware.** Only the simulated adapter (M2) exists. Device SDKs
   (Python/C++) and a WebSocket/gRPC bridge (spec layer 1–2) are not built.
 - **Audit log is JSONL, not SQLite, and not encrypted at rest.** The `AuditStore`

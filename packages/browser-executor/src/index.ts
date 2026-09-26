@@ -174,6 +174,31 @@ export class BrowserExecutor {
         return this.ok(action, `clicked role="${role}"${nameContains ? ` name~="${nameContains}"` : ""}`);
       }
 
+      case BrowserActionType.FILL_FIELD: {
+        const value = requireStringParam(action, "value");
+        const nameContains = optionalStringParam(action, "nameContains");
+        const fieldType = optionalStringParam(action, "fieldType");
+        // input[type=password] is deliberately excluded from the ARIA "textbox" role by
+        // the HTML-AAM spec, so getByRole("textbox") never matches it - fall back to a
+        // CSS locator for that one case instead of pretending role-grounding covers it.
+        const locator =
+          fieldType === "password"
+            ? page.locator('input[type="password"]').first()
+            : page
+                .getByRole("textbox", {
+                  name: nameContains ? new RegExp(escapeRegExp(nameContains), "i") : undefined,
+                })
+                .first();
+        await locator.fill(value, { timeout: 5000 });
+        // Never echo a password-field value back into the audit-visible detail string,
+        // even though the caller is expected to have already redacted it upstream.
+        const shownValue = fieldType === "password" ? "•".repeat(Math.min(value.length, 8)) : value;
+        return this.ok(
+          action,
+          `filled field${nameContains ? ` "${nameContains}"` : ""} with "${shownValue}"`,
+        );
+      }
+
       case BrowserActionType.PLAY_PAUSE_MEDIA: {
         const video = page.locator("video").first();
         const hasVideo = (await video.count()) > 0;

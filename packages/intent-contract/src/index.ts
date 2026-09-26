@@ -152,6 +152,7 @@ export const BrowserActionType = {
   NAVIGATE: "navigate",
   SEARCH: "search",
   CLICK_BY_ROLE: "click_by_role",
+  FILL_FIELD: "fill_field",
   PLAY_PAUSE_MEDIA: "play_pause_media",
   SCROLL: "scroll",
   READ_PAGE: "read_page",
@@ -164,8 +165,9 @@ export const BrowserActionType = {
 } as const;
 export type BrowserActionType = (typeof BrowserActionType)[keyof typeof BrowserActionType];
 
-/** Default risk tier per action type. Planners may not downgrade these; the safety
- * gateway treats this table as the floor. */
+/** Default risk tier per action type. Planners may not downgrade these - see
+ * `planRiskTier`, which clamps every step to this floor regardless of what a planner
+ * (especially a non-deterministic LLM one) claims. */
 export const DEFAULT_ACTION_RISK: Record<BrowserActionType, RiskTier> = {
   [BrowserActionType.READ_PAGE]: RiskTier.OBSERVE,
   [BrowserActionType.SUMMARIZE_PAGE]: RiskTier.OBSERVE,
@@ -174,6 +176,11 @@ export const DEFAULT_ACTION_RISK: Record<BrowserActionType, RiskTier> = {
   [BrowserActionType.PLAY_PAUSE_MEDIA]: RiskTier.REVERSIBLE_NAVIGATION,
   [BrowserActionType.SCROLL]: RiskTier.REVERSIBLE_NAVIGATION,
   [BrowserActionType.CLICK_BY_ROLE]: RiskTier.REVERSIBLE_NAVIGATION,
+  // Typing into a field is reversible and sends nothing to the page's server by
+  // itself - the eventual submit_form/send_message step is what's gated. This is what
+  // lets a login-style plan auto-fill credentials but still pause for confirmation
+  // before they're actually transmitted.
+  [BrowserActionType.FILL_FIELD]: RiskTier.REVERSIBLE_NAVIGATION,
   [BrowserActionType.SEND_MESSAGE]: RiskTier.COMMUNICATION,
   [BrowserActionType.SUBMIT_FORM]: RiskTier.COMMUNICATION,
   [BrowserActionType.PURCHASE]: RiskTier.CONSEQUENTIAL,
@@ -187,6 +194,7 @@ export const BrowserActionSchema = z.object({
     BrowserActionType.NAVIGATE,
     BrowserActionType.SEARCH,
     BrowserActionType.CLICK_BY_ROLE,
+    BrowserActionType.FILL_FIELD,
     BrowserActionType.PLAY_PAUSE_MEDIA,
     BrowserActionType.SCROLL,
     BrowserActionType.READ_PAGE,
@@ -215,12 +223,19 @@ export const PlanSchema = z.object({
 });
 export type Plan = z.infer<typeof PlanSchema>;
 
-/** Highest risk tier across a plan's steps - what the safety gateway gates on. */
+/**
+ * Highest risk tier across a plan's steps - what the safety gateway gates on.
+ *
+ * Each step is clamped to at least `DEFAULT_ACTION_RISK[step.type]` first: a planner
+ * (especially a tool-calling LLM) proposes a plan, it does not authorize one, so it must
+ * never be able to talk its way into a lower risk tier for an action type than the
+ * table says that type actually is.
+ */
 export function planRiskTier(plan: Plan): RiskTier {
-  return plan.steps.reduce<RiskTier>(
-    (max, step) => (step.riskTier > max ? (step.riskTier as RiskTier) : max),
-    RiskTier.OBSERVE,
-  );
+  return plan.steps.reduce<RiskTier>((max, step) => {
+    const effective = Math.max(step.riskTier, DEFAULT_ACTION_RISK[step.type]) as RiskTier;
+    return effective > max ? effective : max;
+  }, RiskTier.OBSERVE);
 }
 
 /* ------------------------------------------------------------------------------------

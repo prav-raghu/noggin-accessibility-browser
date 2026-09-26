@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 import { JsonlAuditStore } from "@noggin/audit-log";
 import { BrowserExecutor } from "@noggin/browser-executor";
 import { BrowserActionType } from "@noggin/intent-contract";
+import { AnthropicLlmClient, LlmPlanner, StubPlanner, type Planner } from "@noggin/agent-planner";
 import { SafetyGateway } from "@noggin/safety-gateway";
 import { SimulatedBciAdapter } from "@noggin/simulated-bci";
 import { Orchestrator } from "./orchestrator.js";
@@ -25,6 +26,26 @@ function envBool(name: string, fallback: boolean): boolean {
   const raw = process.env[name];
   if (raw === undefined) return fallback;
   return raw.toLowerCase() !== "false" && raw !== "0";
+}
+
+/**
+ * `StubPlanner` remains the default so the pipeline still runs with zero external API
+ * calls or cost (README/architecture.md). Setting ANTHROPIC_API_KEY opts into the real
+ * `LlmPlanner`, which understands open-ended free-text goals instead of only the small
+ * hand-coded rule table - see packages/agent-planner/src/llm-planner.ts.
+ */
+function buildPlanner(): Planner {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    console.log("[browser-shell] ANTHROPIC_API_KEY not set - using the rule-based StubPlanner");
+    return new StubPlanner();
+  }
+  console.log(
+    `[browser-shell] ANTHROPIC_API_KEY set - using LlmPlanner (model=${process.env.NOGGIN_LLM_MODEL ?? "default"})`,
+  );
+  return new LlmPlanner({
+    client: new AnthropicLlmClient({ apiKey, model: process.env.NOGGIN_LLM_MODEL }),
+  });
 }
 
 async function main(): Promise<void> {
@@ -52,8 +73,9 @@ async function main(): Promise<void> {
   const audit = new JsonlAuditStore(join(__dirname, "..", "..", "..", "run-data", `${sessionId}.jsonl`));
   const gateway = new SafetyGateway();
   const bci = new SimulatedBciAdapter({ session: sessionId, commandErrorRate: errorRate });
+  const planner = buildPlanner();
 
-  const orchestrator = new Orchestrator({ sessionId, executor, audit, gateway, bci });
+  const orchestrator = new Orchestrator({ sessionId, executor, audit, gateway, bci, planner });
   orchestrator.onUpdate((update) => {
     console.log(`[state] ${update.state}${update.message ? ` — ${update.message}` : ""}`);
   });
