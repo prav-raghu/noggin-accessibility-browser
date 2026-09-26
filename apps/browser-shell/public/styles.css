@@ -7,7 +7,11 @@
   color-scheme: light dark;
   --bg: canvas;
   --fg: canvastext;
-  --accent: #1a73e8;
+  /* Noggin brand pink, from the logo mark. Purely decorative/interactive (borders,
+   * focus rings, the state-banner outline) - never the only way state is conveyed, so a
+   * user picking a low-contrast value in the Theme control below can't make the UI
+   * unusable, just less pretty. See #theme-accent in app.js for how it's overridden. */
+  --accent: #ea1e79;
   --danger: #b3261e;
   --ok: #1e8e3e;
   --border: color-mix(in srgb, var(--fg) 25%, transparent);
@@ -29,11 +33,44 @@ body {
 header {
   padding: 1rem 1.5rem;
   border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
 }
 
 header h1 {
   margin: 0 0 0.25rem;
   font-size: 1.5rem;
+}
+
+.theme-control {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+}
+
+.theme-control input[type="color"] {
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0.125rem;
+  border: 2px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--bg);
+  cursor: pointer;
+}
+
+.theme-control input[type="color"]:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.theme-control .btn {
+  padding: 0.5rem 0.75rem;
+  min-height: 2.5rem;
+  font-size: 0.9rem;
 }
 
 main {

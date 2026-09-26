@@ -145,6 +145,15 @@ export class BrowserExecutor {
 
       case BrowserActionType.NAVIGATE: {
         const url = requireStringParam(action, "url");
+        // Hard guard, not a planner-instruction one: no planner (a hallucinating LLM
+        // included) gets to send this executor to a javascript:/file:/chrome: URL just
+        // by putting one in a plan's params - spec section 11's "never treat webpage
+        // text as authorization" extends to never treating planner output as
+        // authorization for an unsafe scheme either. Enforced here, at the one place
+        // navigation actually happens, rather than trusted to prompt wording.
+        if (!isNavigableUrl(url)) {
+          return this.fail(action, `refused to navigate to a non-http(s) URL: ${url}`);
+        }
         await page.goto(url, { waitUntil: "domcontentloaded" });
         return this.ok(action, `navigated to ${url}`);
       }
@@ -266,4 +275,23 @@ function optionalStringParam(action: BrowserAction, key: string): string | undef
 
 function escapeRegExp(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Allowlist, not a blocklist: an unrecognized scheme fails closed. `data:` is included
+ * alongside `http:`/`https:` because Chromium gives every `data:` navigation its own
+ * opaque origin (no access to another origin's cookies/storage/filesystem), and this
+ * package's own tests rely on `data:` fixture pages to avoid real network calls. What's
+ * actually worth blocking - `javascript:` (executes in the current page's context),
+ * `file:`/`chrome:`/`chrome-extension:` (privileged local/browser-internal access) -
+ * stays blocked regardless of which planner (rule-based or LLM) produced the action.
+ */
+const NAVIGABLE_URL_SCHEMES = new Set(["http:", "https:", "data:"]);
+
+function isNavigableUrl(url: string): boolean {
+  try {
+    return NAVIGABLE_URL_SCHEMES.has(new URL(url).protocol);
+  } catch {
+    return false;
+  }
 }

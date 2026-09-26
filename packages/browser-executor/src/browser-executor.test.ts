@@ -12,6 +12,7 @@ const FIXTURE_URL =
         <h1>Fixture Page</h1>
         <a href="#" role="link">Open Season 9</a>
         <video></video>
+        <input type="text" aria-label="Search box" />
       </body>
     </html>
   `);
@@ -73,4 +74,41 @@ test("Tier 2+ actions without a generic implementation throw NotImplementedActio
     () => executor.execute(makeAction({ type: BrowserActionType.PURCHASE })),
     NotImplementedActionError,
   );
+});
+
+test("fill_field types into a text field", async () => {
+  await executor.execute(makeAction({ type: BrowserActionType.NAVIGATE, params: { url: FIXTURE_URL } }));
+  const result = await executor.execute(
+    makeAction({
+      type: BrowserActionType.FILL_FIELD,
+      params: { value: "hello", nameContains: "Search" },
+    }),
+  );
+  assert.ok(result.ok);
+});
+
+test("navigate refuses a javascript: URL regardless of which planner produced it", async () => {
+  const before = await executor.getPageContext();
+  const result = await executor.execute(
+    makeAction({ type: BrowserActionType.NAVIGATE, params: { url: "javascript:alert(1)" } }),
+  );
+  assert.equal(result.ok, false);
+  assert.match(result.detail, /refused to navigate/);
+  // The page must not have actually navigated anywhere.
+  assert.equal(result.context.url, before.url);
+});
+
+test("navigate refuses a file: URL", async () => {
+  const result = await executor.execute(
+    makeAction({ type: BrowserActionType.NAVIGATE, params: { url: "file:///etc/passwd" } }),
+  );
+  assert.equal(result.ok, false);
+  assert.match(result.detail, /refused to navigate/);
+});
+
+test("navigate allows http(s) and data: URLs", async () => {
+  const result = await executor.execute(
+    makeAction({ type: BrowserActionType.NAVIGATE, params: { url: FIXTURE_URL } }),
+  );
+  assert.ok(result.ok);
 });

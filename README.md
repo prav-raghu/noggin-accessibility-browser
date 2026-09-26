@@ -71,18 +71,28 @@ rules apply. If your terminal is a TTY, keyboard shortcuts also work directly: `
 trigger a preset goal, `s`/`Esc` = STOP, `y` = CONFIRM, `n` = REJECT, `q` = QUERY_INTENT
 (explain), `u` = UNDO.
 
+The accent color (top-right "Accent color" swatch) defaults to the Noggin logo's pink
+but is user-customizable and persisted per-browser (`localStorage`) - it's purely
+decorative (borders/focus rings), so any choice stays usable; "Reset" restores the
+default.
+
 ### Planning open-ended goals for free, locally, via Ollama (recommended)
 
 `LlmPlanner` doesn't need a paid API - [Ollama](https://ollama.com) runs open-weight
-models (Llama 3.1, Qwen2.5, Mistral-Nemo, etc.) entirely on your own machine for free,
+models (Llama 3.2, Qwen2.5, Mistral-Nemo, etc.) entirely on your own machine for free,
 with no rate limit tied to a cloud account. Only a handful of Ollama's models actually
-support tool calling; `llama3.1` is a solid default.
+support tool calling. Prefer a small (1B-3B) variant - planning a short, capped-length
+action list doesn't need a large model, and a small one leaves far more headroom on a
+machine that's also running Chromium:
 
 ```bash
-ollama pull llama3.1
-ollama serve                    # usually already running as a background service
-NOGGIN_OLLAMA_MODEL=llama3.1 npm run dev
+ollama pull llama3.2:3b          # or qwen2.5:3b - both are small and support tool calling
+ollama serve                     # usually already running as a background service
+NOGGIN_OLLAMA_MODEL=llama3.2:3b npm run dev
 ```
+
+If you have the RAM/VRAM to spare and want more reliable planning on harder goals,
+`llama3.1` (8B) is a solid step up.
 
 Useful env vars (see `apps/browser-shell/src/main.ts`):
 
@@ -91,8 +101,9 @@ Useful env vars (see `apps/browser-shell/src/main.ts`):
 | `NOGGIN_HEADLESS` | `true` | Set `false` to run Chromium headed (needs a display) |
 | `NOGGIN_PORT` | `4173` | Feedback UI port |
 | `NOGGIN_ERROR_RATE` | `0` | Simulated BCI command misclassification rate, `0`-`1` |
-| `NOGGIN_OLLAMA_MODEL` | unset | If set, use `LlmPlanner` over a free local Ollama model (e.g. `llama3.1`) |
+| `NOGGIN_OLLAMA_MODEL` | unset | If set, use `LlmPlanner` over a free local Ollama model (e.g. `llama3.2:3b`) |
 | `NOGGIN_LLM_BASE_URL` | `http://localhost:11434/v1` | Override for `NOGGIN_OLLAMA_MODEL` - also works against any other OpenAI-compatible local server (llama.cpp, LM Studio, vLLM) |
+| `NOGGIN_LLM_TIMEOUT_MS` | `20000` | Abort a planning call after this long - raise it if local inference on your hardware is just slow, not stuck |
 | `ANTHROPIC_API_KEY` | unset | If set (and no `NOGGIN_OLLAMA_MODEL`), use `LlmPlanner` over the paid Anthropic API instead |
 | `NOGGIN_LLM_MODEL` | `claude-haiku-4-5-20251001` | Model id, only used with `ANTHROPIC_API_KEY` |
 | `NOGGIN_LLM_PROVIDER` | unset | Force `"ollama"`, `"anthropic"` or `"stub"`, overriding the auto-detection above |

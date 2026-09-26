@@ -8,8 +8,18 @@
 </head>
 <body>
   <header>
-    <h1>Noggin control panel</h1>
-    <p id="connection-status" aria-live="polite">Connecting…</p>
+    <div>
+      <h1>Noggin control panel</h1>
+      <p id="connection-status" aria-live="polite">Connecting…</p>
+    </div>
+    <!-- Brand accent color, from the Noggin logo by default - user-customizable and
+         purely decorative (borders/focus rings only), never the sole carrier of state,
+         so it can't be picked into an unusable combination. -->
+    <div class="theme-control">
+      <label for="theme-accent">Accent color</label>
+      <input id="theme-accent" type="color" value="#ea1e79" />
+      <button id="btn-theme-reset" class="btn" type="button">Reset</button>
+    </div>
   </header>
 
   <main>

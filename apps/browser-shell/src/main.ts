@@ -52,13 +52,18 @@ function buildPlanner(): Planner {
   const provider = process.env.NOGGIN_LLM_PROVIDER?.toLowerCase();
   const ollamaModel = process.env.NOGGIN_OLLAMA_MODEL;
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  // Local inference on modest hardware can be slower than a cloud call - raise this via
+  // env if you see spurious timeouts rather than disabling the guard outright.
+  const timeoutMs = process.env.NOGGIN_LLM_TIMEOUT_MS
+    ? Number(process.env.NOGGIN_LLM_TIMEOUT_MS)
+    : undefined;
 
   const useOllama = provider === "ollama" || (!provider && Boolean(ollamaModel));
   const useAnthropic = provider === "anthropic" || (!provider && !ollamaModel && Boolean(anthropicKey));
 
   if (useOllama) {
     if (!ollamaModel) {
-      throw new Error("NOGGIN_LLM_PROVIDER=ollama requires NOGGIN_OLLAMA_MODEL to be set (e.g. \"llama3.1\")");
+      throw new Error("NOGGIN_LLM_PROVIDER=ollama requires NOGGIN_OLLAMA_MODEL to be set (e.g. \"llama3.2:3b\")");
     }
     console.log(
       `[browser-shell] using LlmPlanner over a free, local Ollama model (model=${ollamaModel}, ` +
@@ -66,7 +71,7 @@ function buildPlanner(): Planner {
         "make sure `ollama serve` is running and the model has been pulled",
     );
     return new LlmPlanner({
-      client: new OllamaLlmClient({ model: ollamaModel, baseUrl: process.env.NOGGIN_LLM_BASE_URL }),
+      client: new OllamaLlmClient({ model: ollamaModel, baseUrl: process.env.NOGGIN_LLM_BASE_URL, timeoutMs }),
     });
   }
 
@@ -78,7 +83,7 @@ function buildPlanner(): Planner {
       `[browser-shell] using LlmPlanner over the Anthropic API (model=${process.env.NOGGIN_LLM_MODEL ?? "default"})`,
     );
     return new LlmPlanner({
-      client: new AnthropicLlmClient({ apiKey: anthropicKey, model: process.env.NOGGIN_LLM_MODEL }),
+      client: new AnthropicLlmClient({ apiKey: anthropicKey, model: process.env.NOGGIN_LLM_MODEL, timeoutMs }),
     });
   }
 

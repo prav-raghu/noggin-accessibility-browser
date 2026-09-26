@@ -128,6 +128,18 @@ test("a Facebook login goal redacts the password before it reaches the LLM and r
   assert.equal(passwordStep.params.value, "{{SECRET_1}}", "resolve() must not mutate the original params");
 });
 
+test("returns null (asks for clarification) when the model proposes more than the step cap", async () => {
+  const tooManySteps = Array.from({ length: 9 }, (_, i) => ({
+    type: "scroll",
+    params: {},
+    description: `step ${i}`,
+  }));
+  const client = fakeClient({ goal: "an overly long plan", steps: tooManySteps });
+  const planner = new LlmPlanner({ client });
+  const plan = await planner.plan(goalIntent("do a lot of things"), {});
+  assert.equal(plan, null);
+});
+
 test("returns null (asks for clarification) when the model sets clarification_needed", async () => {
   const client = fakeClient({ clarification_needed: "Which site did you mean?" });
   const planner = new LlmPlanner({ client });

@@ -90,4 +90,49 @@ goalForm.addEventListener("submit", (event) => {
   goalInput.value = "";
 });
 
+// Theme: the accent color defaults to the Noggin logo's pink (set in styles.css) but is
+// user-customizable and persisted per-browser. It's purely decorative (borders/focus
+// rings via var(--accent)), never the only way state is conveyed, so any color choice
+// stays usable. localStorage can throw (private browsing, blocked site data) or just be
+// unavailable - every access below is wrapped so a customized theme degrades to "doesn't
+// persist across reloads" rather than breaking the page.
+const THEME_STORAGE_KEY = "noggin.theme.accent";
+const accentInput = document.getElementById("theme-accent");
+const defaultAccent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+
+function applyAccent(hex) {
+  document.documentElement.style.setProperty("--accent", hex);
+  accentInput.value = hex;
+}
+
+(function loadTheme() {
+  let saved = null;
+  try {
+    saved = localStorage.getItem(THEME_STORAGE_KEY);
+  } catch {
+    // Ignore - fall through to the CSS default.
+  }
+  if (saved) applyAccent(saved);
+  else accentInput.value = defaultAccent;
+})();
+
+accentInput.addEventListener("input", () => {
+  applyAccent(accentInput.value);
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, accentInput.value);
+  } catch {
+    // Ignore - the color still applies for this session, it just won't persist.
+  }
+});
+
+document.getElementById("btn-theme-reset").addEventListener("click", () => {
+  document.documentElement.style.removeProperty("--accent");
+  try {
+    localStorage.removeItem(THEME_STORAGE_KEY);
+  } catch {
+    // Ignore.
+  }
+  accentInput.value = defaultAccent;
+});
+
 connect();

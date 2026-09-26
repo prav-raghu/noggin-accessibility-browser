@@ -125,6 +125,21 @@ honestly-scoped claims (section 18, section 25):
     nothing until the user has explicitly previewed and confirmed the whole plan -
     "fill email, fill password, submit" - matching spec section 10's "Preview +
     explicit confirmation" for Tier 2, without any planner-specific gateway logic.
+  - **Bounded resource usage.** A plan is capped at `MAX_PLAN_STEPS` (8) steps -
+    schema-enforced (`z.array(...).max(...)`), not just requested in the prompt - and
+    both LLM clients cap the model's response length and abort a hung request after
+    `timeoutMs` (default 20s) via `AbortSignal.timeout`, so a stalled local model can't
+    leave the orchestrator stuck in "planning" indefinitely. Context fields
+    (`currentUrl`/`pageTitle`) are truncated before they reach the prompt, since they
+    ultimately come from the current page - untrusted, and otherwise unbounded, content.
+    For `OllamaLlmClient` specifically, a small (1B-3B) model is the intended choice, not
+    just for token/resource budget but because Chromium is running on the same machine.
+  - **Guards live at the execution boundary, not just in the prompt.** A prompt
+    instruction is not a security control - it's advisory, and open-weight models in
+    particular can be steered off it by adversarial page content. So `browser-executor`
+    independently enforces an allowlist of navigable URL schemes (`http:`/`https:`/
+    `data:`) before any `navigate` action runs, refusing `javascript:`/`file:`/`chrome:`
+    regardless of which planner (rule-based or LLM) produced the URL or why.
 - **No live EEG / BCI hardware.** Only the simulated adapter (M2) exists. Device SDKs
   (Python/C++) and a WebSocket/gRPC bridge (spec layer 1–2) are not built.
 - **Audit log is JSONL, not SQLite, and not encrypted at rest.** The `AuditStore`
