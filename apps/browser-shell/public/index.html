@@ -53,6 +53,19 @@
       </div>
     </section>
 
+    <!-- Only shown while state is "awaiting_manual_action" - a bot-check/CAPTCHA
+         challenge was detected that only a person can complete. This never tries to
+         solve it automatically (see BrowserExecutor.detectChallenge): it pauses and
+         hands off. Only meaningful with a headed browser (NOGGIN_HEADLESS=false) - in
+         headless mode there's no window for a person to actually interact with. -->
+    <section aria-label="Needs your help" class="panel panel-alert" id="manual-action-panel" hidden>
+      <h2>Needs your help</h2>
+      <p id="manual-action-message" aria-live="assertive"></p>
+      <div class="controls">
+        <button id="btn-continue-manual" class="btn btn-confirm" type="button">I've handled it — Continue</button>
+      </div>
+    </section>
+
     <!-- Low cognitive-load choice set: a handful of preset goals rather than a long
          menu (spec 12: "normally 2-4 alternatives"). Mirrors the simulated-bci
          keyboard bindings 1-4 so keyboard and control-panel users get the same
@@ -82,6 +95,24 @@
         />
         <button class="btn" type="submit">Send</button>
       </form>
+    </section>
+
+    <!-- Row-column scanning keyboard: lets someone limited to a single binary select/
+         cancel channel (a real BCI's select/cancel signal, or - here - the CONFIRM/
+         REJECT commands already used for plan confirmation) compose free text without
+         ever needing a physical keyboard. Toggled on/off explicitly: while active, the
+         Confirm/Reject buttons above drive the scan instead of a pending plan
+         confirmation (see Orchestrator.handleIntent). -->
+    <section aria-label="Onscreen keyboard" class="panel">
+      <h2>Onscreen keyboard</h2>
+      <div class="controls">
+        <button id="btn-toggle-keyboard" class="btn" type="button">Show onscreen keyboard</button>
+      </div>
+      <div id="keyboard-panel" hidden>
+        <p>Composing: <span id="keyboard-buffer" aria-live="polite">(empty)</span></p>
+        <p class="hint">Confirm selects the highlighted row/key; Reject goes back.</p>
+        <div id="keyboard-grid" role="group" aria-label="Scanning keyboard grid"></div>
+      </div>
     </section>
 
     <section aria-label="Event trace" class="panel">

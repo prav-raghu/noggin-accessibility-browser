@@ -20,14 +20,16 @@ import {
   AgentState,
   IntentCommand,
   planRiskTier,
+  type BrowserAction,
   type IntentEvent,
   type Plan,
 } from "@noggin/intent-contract";
 import { StubPlanner, type Planner } from "@noggin/agent-planner";
 import { SafetyGateway, type GatewayDecision } from "@noggin/safety-gateway";
-import { BrowserExecutor, type ActionResult } from "@noggin/browser-executor";
+import { BrowserExecutor, type ActionResult, type ChallengeInfo } from "@noggin/browser-executor";
 import { AuditEventType, type AuditStore } from "@noggin/audit-log";
 import { SimulatedBciAdapter } from "@noggin/simulated-bci";
+import { OnscreenKeyboard, type OnscreenKeyboardState } from "./onscreen-keyboard.js";
 
 /**
  * How long a needs_confirmation plan waits before the confirmation window elapses.
@@ -42,6 +44,7 @@ export interface OrchestratorUpdate {
   lastDecision?: GatewayDecision;
   lastActionResult?: ActionResult;
   message?: string;
+  keyboard: OnscreenKeyboardState;
 }
 
 type UpdateListener = (update: OrchestratorUpdate) => void;
@@ -53,6 +56,7 @@ export interface OrchestratorConfig {
   executor: BrowserExecutor;
   audit: AuditStore;
   bci: SimulatedBciAdapter;
+  onscreenKeyboard?: OnscreenKeyboard;
 }
 
 export class Orchestrator {
@@ -61,6 +65,7 @@ export class Orchestrator {
   readonly executor: BrowserExecutor;
   readonly audit: AuditStore;
   readonly bci: SimulatedBciAdapter;
+  readonly onscreenKeyboard: OnscreenKeyboard;
   private readonly sessionId: string;
 
   private state: AgentState = AgentState.LISTENING;
@@ -70,6 +75,9 @@ export class Orchestrator {
   private lastDecision?: GatewayDecision;
   private lastActionResult?: ActionResult;
   private confirmationTimer?: NodeJS.Timeout;
+  /** Set when a plan's execution is halted mid-way by a detected bot-check challenge
+   * (see runSteps) - holds exactly what's needed to resume from where it stopped. */
+  private pausedForManualAction: { plan: Plan; remainingSteps: BrowserAction[] } | null = null;
   private readonly listeners = new Set<UpdateListener>();
 
   constructor(config: OrchestratorConfig) {
@@ -79,9 +87,30 @@ export class Orchestrator {
     this.executor = config.executor;
     this.audit = config.audit;
     this.bci = config.bci;
+    this.onscreenKeyboard = config.onscreenKeyboard ?? new OnscreenKeyboard();
 
     this.bci.on("intent", (event) => {
       void this.handleIntent(event);
+    });
+
+    this.onscreenKeyboard.on((event) => {
+      if (event.type === "state") {
+        this.publish();
+        return;
+      }
+      if (event.type === "cancelled") {
+        this.publish("onscreen keyboard: composition cancelled");
+        return;
+      }
+      // "done": feed the composed text through exactly the same EXECUTE_GOAL path the
+      // control panel's free-text box uses (server.ts) - a BCI-only user typing a goal
+      // via the scanning keyboard is handled identically to one typed on a physical
+      // keyboard from here on.
+      const text = event.text.trim();
+      this.publish(`onscreen keyboard: composed "${text}"`);
+      if (text.length > 0) {
+        this.bci.trigger(IntentCommand.EXECUTE_GOAL, text.split(/\s+/), { confidence: 1 });
+      }
     });
   }
 
@@ -97,6 +126,7 @@ export class Orchestrator {
       lastPlan: this.lastPlan,
       lastDecision: this.lastDecision,
       lastActionResult: this.lastActionResult,
+      keyboard: this.onscreenKeyboard.getState(),
       message,
     };
     for (const listener of this.listeners) listener(update);
@@ -216,7 +246,19 @@ export class Orchestrator {
 
   private async runPlan(plan: Plan): Promise<void> {
     this.setState(AgentState.ACTING, `executing: ${plan.goal}`);
-    for (const step of plan.steps) {
+    await this.runSteps(plan, plan.steps);
+  }
+
+  /**
+   * Runs `steps` (either a whole plan, or - via `continueAfterManualAction` - whatever
+   * was left after a pause) in order. After each successfully executed step, checks for
+   * a bot-check/CAPTCHA challenge (`BrowserExecutor.detectChallenge`) that only a person
+   * can complete; if one is showing, execution halts right there (not failed) and
+   * `pausedForManualAction` records exactly what's left to run once it's cleared.
+   */
+  private async runSteps(plan: Plan, steps: readonly BrowserAction[]): Promise<void> {
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i]!;
       try {
         // `resolveParams` lets a planner (e.g. LlmPlanner) substitute a redacted
         // credential placeholder back to its real value for the live call only - the
@@ -233,7 +275,18 @@ export class Orchestrator {
           payload: result,
         });
         this.publish(result.detail);
-        if (!result.ok) break;
+        if (!result.ok) return;
+
+        const challenge = await this.detectChallenge();
+        if (challenge.requiresManualAction) {
+          this.pausedForManualAction = { plan, remainingSteps: steps.slice(i + 1) };
+          this.setState(
+            AgentState.AWAITING_MANUAL_ACTION,
+            `a ${challenge.provider ?? "bot-check"} challenge appeared that only a person can complete - ` +
+              `solve it in the browser window (requires headed mode - see README), then choose Continue`,
+          );
+          return;
+        }
       } catch (err) {
         await this.audit.record({
           type: AuditEventType.EXECUTED_ACTION,
@@ -247,6 +300,43 @@ export class Orchestrator {
     this.setState(AgentState.LISTENING, `done: ${plan.goal}`);
   }
 
+  /** Never lets a failure here take down plan execution - this is a best-effort safety
+   * check, not a required step. A plain `.catch()` on the call wouldn't be enough: it
+   * only guards a promise rejection, not a synchronous throw (e.g. a test double or
+   * other executor that doesn't implement detectChallenge at all). */
+  private async detectChallenge(): Promise<ChallengeInfo> {
+    try {
+      return await this.executor.detectChallenge();
+    } catch {
+      return { present: false, requiresManualAction: false };
+    }
+  }
+
+  /**
+   * "I've handled it - Continue" after an AWAITING_MANUAL_ACTION pause. Re-checks first:
+   * a person clicking Continue before actually finishing the challenge is a real thing
+   * that will happen, and re-running the same detection is cheap and precise.
+   */
+  async continueAfterManualAction(): Promise<void> {
+    if (!this.pausedForManualAction) {
+      this.publish("nothing paused on a manual challenge");
+      return;
+    }
+    const challenge = await this.detectChallenge();
+    if (challenge.requiresManualAction) {
+      this.publish(`still detecting a ${challenge.provider ?? "bot-check"} challenge - please finish it first`);
+      return;
+    }
+    const { plan, remainingSteps } = this.pausedForManualAction;
+    this.pausedForManualAction = null;
+    if (remainingSteps.length === 0) {
+      this.setState(AgentState.LISTENING, `done: ${plan.goal}`);
+      return;
+    }
+    this.setState(AgentState.ACTING, `resuming: ${plan.goal}`);
+    await this.runSteps(plan, remainingSteps);
+  }
+
   /* -------------------------------------------------------------------------------
    * Deterministic controls - all reachable directly from the feedback UI too, not
    * only via IntentEvent, since STOP/pause must work even if the BCI channel itself
@@ -257,6 +347,8 @@ export class Orchestrator {
     if (this.confirmationTimer) clearTimeout(this.confirmationTimer);
     this.gateway.stop();
     this.lastPlan = null;
+    this.pausedForManualAction = null;
+    this.onscreenKeyboard.deactivate();
     this.setState(AgentState.STOPPED, "stopped");
   }
 
@@ -270,7 +362,31 @@ export class Orchestrator {
     this.setState(AgentState.LISTENING, "resumed");
   }
 
+  /** Show/hide the scanning onscreen keyboard. While active it takes over CONFIRM/
+   * REJECT (see handleIntent) - a person composing text and a plan waiting on
+   * confirmation can't both claim the same binary signal at once, so the plan just
+   * waits until the keyboard is closed. */
+  toggleOnscreenKeyboard(): void {
+    if (this.onscreenKeyboard.getState().active) {
+      this.onscreenKeyboard.deactivate();
+    } else {
+      this.onscreenKeyboard.activate();
+    }
+  }
+
+  /**
+   * The "CONFIRM" signal - IntentCommand.CONFIRM via handleIntent, the 'y' keyboard
+   * shortcut, or the control panel's Confirm button all end up here. While the onscreen
+   * keyboard is active it claims this signal for "select the highlighted row/key"
+   * instead - a plan still waiting on confirmation just keeps waiting (never silently
+   * resolved) until the keyboard is closed. Checked here rather than in handleIntent so
+   * every entry point gets the same behavior, not just the ones that route through it.
+   */
   async confirmPending(): Promise<void> {
+    if (this.onscreenKeyboard.getState().active) {
+      this.onscreenKeyboard.select();
+      return;
+    }
     const plan = this.gateway.confirm();
     if (this.confirmationTimer) clearTimeout(this.confirmationTimer);
     await this.audit.record({
@@ -285,7 +401,13 @@ export class Orchestrator {
     await this.runPlan(plan);
   }
 
+  /** The "REJECT" signal - see confirmPending's note on why the keyboard-active check
+   * lives here rather than in handleIntent. */
   async rejectPending(reason: string): Promise<void> {
+    if (this.onscreenKeyboard.getState().active) {
+      this.onscreenKeyboard.cancel();
+      return;
+    }
     const plan = this.gateway.reject(reason);
     if (this.confirmationTimer) clearTimeout(this.confirmationTimer);
     await this.audit.record({
@@ -327,6 +449,7 @@ export class Orchestrator {
       lastPlan: this.lastPlan,
       lastDecision: this.lastDecision,
       lastActionResult: this.lastActionResult,
+      keyboard: this.onscreenKeyboard.getState(),
     };
   }
 }

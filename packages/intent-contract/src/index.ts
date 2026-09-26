@@ -247,6 +247,10 @@ export const AgentState = {
   PLANNING: "planning",
   AWAITING_CONFIRMATION: "awaiting_confirmation",
   ACTING: "acting",
+  /** A mid-plan bot-check/CAPTCHA challenge was detected that only a person can
+   * complete (see BrowserExecutor.detectChallenge) - execution is paused, not failed,
+   * and resumes once the person clears it and chooses "Continue". */
+  AWAITING_MANUAL_ACTION: "awaiting_manual_action",
   PAUSED: "paused",
   STOPPED: "stopped",
 } as const;

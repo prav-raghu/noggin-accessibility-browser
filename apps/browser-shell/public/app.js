@@ -8,6 +8,8 @@ const pendingSummaryEl = document.getElementById("pending-summary");
 const btnConfirm = document.getElementById("btn-confirm");
 const btnReject = document.getElementById("btn-reject");
 const logEl = document.getElementById("log");
+const manualActionPanelEl = document.getElementById("manual-action-panel");
+const manualActionMessageEl = document.getElementById("manual-action-message");
 
 let socket;
 
@@ -40,9 +42,12 @@ function applyUpdate(update) {
   stateEl.textContent = update.state;
   messageEl.textContent = update.message ?? "";
 
+  const keyboardActive = Boolean(update.keyboard && update.keyboard.active);
   const awaitingConfirmation = update.state === "awaiting_confirmation" && update.lastPlan;
-  btnConfirm.disabled = !awaitingConfirmation;
-  btnReject.disabled = !awaitingConfirmation;
+  // While the keyboard is active it claims Confirm/Reject for select/back instead of
+  // plan confirmation (see Orchestrator.handleIntent) - so both stay enabled either way.
+  btnConfirm.disabled = !(awaitingConfirmation || keyboardActive);
+  btnReject.disabled = !(awaitingConfirmation || keyboardActive);
 
   if (awaitingConfirmation) {
     const plan = update.lastPlan;
@@ -52,6 +57,13 @@ function applyUpdate(update) {
   } else {
     pendingSummaryEl.textContent = "Nothing awaiting confirmation.";
   }
+
+  manualActionPanelEl.hidden = update.state !== "awaiting_manual_action";
+  if (!manualActionPanelEl.hidden) {
+    manualActionMessageEl.textContent = update.message ?? "A challenge needs your help to continue.";
+  }
+
+  applyKeyboardState(update.keyboard);
 
   appendLog(update);
 }
@@ -74,6 +86,9 @@ btnConfirm.addEventListener("click", () => send({ type: "confirm" }));
 btnReject.addEventListener("click", () => send({ type: "reject" }));
 document.getElementById("btn-explain").addEventListener("click", () => send({ type: "query_intent" }));
 document.getElementById("btn-undo").addEventListener("click", () => send({ type: "undo" }));
+document
+  .getElementById("btn-continue-manual")
+  .addEventListener("click", () => send({ type: "continue_after_manual_action" }));
 
 document.getElementById("goal-buttons").addEventListener("click", (event) => {
   const preset = event.target.closest("[data-preset]")?.dataset.preset;
@@ -134,5 +149,57 @@ document.getElementById("btn-theme-reset").addEventListener("click", () => {
   }
   accentInput.value = defaultAccent;
 });
+
+// Onscreen scanning keyboard: mirrors packages KEYBOARD_ROWS in
+// apps/browser-shell/src/onscreen-keyboard.ts. Purely a view - the scan clock and
+// select/cancel logic are server-side and authoritative (see that file's header
+// comment for why); this only ever renders whatever `update.keyboard` says.
+const KEYBOARD_ROWS = [
+  ["A", "B", "C", "D", "E", "F"],
+  ["G", "H", "I", "J", "K", "L"],
+  ["M", "N", "O", "P", "Q", "R"],
+  ["S", "T", "U", "V", "W", "X"],
+  ["Y", "Z", "SPACE", "BACKSPACE", "DONE", "CANCEL"],
+];
+
+const keyboardPanelEl = document.getElementById("keyboard-panel");
+const keyboardGridEl = document.getElementById("keyboard-grid");
+const keyboardBufferEl = document.getElementById("keyboard-buffer");
+const btnToggleKeyboard = document.getElementById("btn-toggle-keyboard");
+
+KEYBOARD_ROWS.forEach((row, rowIndex) => {
+  const rowEl = document.createElement("div");
+  rowEl.className = "kb-row";
+  rowEl.dataset.rowIndex = String(rowIndex);
+  row.forEach((key) => {
+    const keyEl = document.createElement("span");
+    keyEl.className = "kb-key";
+    keyEl.textContent = key;
+    rowEl.appendChild(keyEl);
+  });
+  keyboardGridEl.appendChild(rowEl);
+});
+
+function applyKeyboardState(kb) {
+  const active = Boolean(kb && kb.active);
+  keyboardPanelEl.hidden = !active;
+  btnToggleKeyboard.textContent = active ? "Hide onscreen keyboard" : "Show onscreen keyboard";
+  keyboardBufferEl.textContent = active && kb.buffer ? kb.buffer : "(empty)";
+
+  const rowEls = keyboardGridEl.children;
+  for (let r = 0; r < rowEls.length; r++) {
+    const rowEl = rowEls[r];
+    const isHighlightedRow = active && ((kb.mode === "row" && kb.activeRowIndex === r) || kb.lockedRowIndex === r);
+    rowEl.classList.toggle("active", isHighlightedRow);
+
+    const keyEls = rowEl.children;
+    for (let c = 0; c < keyEls.length; c++) {
+      const isHighlightedKey = active && kb.mode === "column" && kb.lockedRowIndex === r && kb.activeColIndex === c;
+      keyEls[c].classList.toggle("active", isHighlightedKey);
+    }
+  }
+}
+
+btnToggleKeyboard.addEventListener("click", () => send({ type: "toggle_onscreen_keyboard" }));
 
 connect();

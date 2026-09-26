@@ -140,6 +140,44 @@ honestly-scoped claims (section 18, section 25):
     independently enforces an allowlist of navigable URL schemes (`http:`/`https:`/
     `data:`) before any `navigate` action runs, refusing `javascript:`/`file:`/`chrome:`
     regardless of which planner (rule-based or LLM) produced the URL or why.
+- **Bot-check/CAPTCHA challenges pause for a person - they are never solved
+  automatically.** `BrowserExecutor.detectChallenge()` recognizes a handful of known
+  providers (reCAPTCHA, hCaptcha, Cloudflare Turnstile) by their iframe URL conventions.
+  `Orchestrator.runSteps` checks after every executed step; if the widget's actual
+  challenge (not just an unclicked checkbox) is showing, execution halts right there -
+  `AgentState.AWAITING_MANUAL_ACTION`, not a failure - and `pausedForManualAction` records
+  exactly what's left to run. The control panel's "Needs your help" panel surfaces this
+  with a "Continue" button, which re-checks before resuming
+  (`Orchestrator.continueAfterManualAction`). Deliberately out of scope, on principle: any
+  attempt to read, solve or bypass the challenge itself - that's exactly what these
+  checks exist to prevent, and it isn't yours to solve on the user's behalf, so there's no
+  `BrowserActionType` for it and never will be. A plan can still include clicking the
+  passive "I'm not a robot" checkbox as an ordinary `click_by_role` step (which is why
+  `CLICK_BY_ROLE`/`FILL_FIELD` now search inside `<iframe>`s, not just the main frame -
+  see `firstMatchAcrossFrames`) - only the interactive challenge itself pauses.
+  - **Requires a headed browser.** This hand-off is only meaningful with
+    `NOGGIN_HEADLESS=false` (`npm run dev:headed`) - in headless mode there's no window
+    for a person to actually click into. Nothing prevents pausing in headless mode too;
+    it just has no way to ever be cleared.
+  - **Detection is a heuristic, not a guarantee.** It matches each provider's currently
+    documented iframe URL conventions, which they can and do change. A false negative
+    (a challenge that isn't recognized) fails open - the plan just proceeds and the next
+    step's own outcome (e.g. a blocked form submission) surfaces the problem instead.
+- **A row-column scanning keyboard covers free-text entry for a BCI-only user.**
+  `apps/browser-shell/src/onscreen-keyboard.ts`'s `OnscreenKeyboard` is the standard
+  assistive-tech text-entry pattern (switch access, AAC devices) - it scans rows, then
+  columns within a locked row, and is driven entirely by the same two signals the rest of
+  the system already uses: `IntentCommand.CONFIRM` selects, `REJECT` backs out one level.
+  The scan clock is server-side and authoritative (not a client-side animation), so a
+  real BCI's select/cancel channel could drive it exactly as the control panel's Confirm/
+  Reject buttons and 'y'/'n' keyboard shortcuts do today. Toggled on/off explicitly
+  (`Orchestrator.toggleOnscreenKeyboard`); while active it claims CONFIRM/REJECT for
+  scanning instead of plan confirmation (checked in `confirmPending`/`rejectPending`, not
+  `handleIntent`, so every entry point - intent events, keyboard shortcuts, the control
+  panel's buttons - behaves the same way). Composed text feeds the same `EXECUTE_GOAL`
+  path the free-text goal box uses, not an arbitrary in-page field yet - typing directly
+  into a specific field (e.g. answering a text-based challenge, replying inline) is a
+  natural next step, not built here.
 - **No live EEG / BCI hardware.** Only the simulated adapter (M2) exists. Device SDKs
   (Python/C++) and a WebSocket/gRPC bridge (spec layer 1–2) are not built.
 - **Audit log is JSONL, not SQLite, and not encrypted at rest.** The `AuditStore`

@@ -48,7 +48,9 @@ simulated-bci -> agent-planner -> safety-gateway -> browser-executor -> audit-lo
   events, planner interpretation, gateway decisions and executed actions.
 - **`apps/browser-shell`** — the orchestrator that wires all of the above together and
   serves a small local control panel (feedback UI) showing live intent/confidence/state
-  with Stop / Pause / Confirm / Reject / Explain / Undo controls.
+  with Stop / Pause / Confirm / Reject / Explain / Undo controls, a toggleable
+  row-column scanning onscreen keyboard for BCI-only text entry, and a "Needs your
+  help" hand-off when a bot-check/CAPTCHA challenge needs a person to clear it.
 
 See `docs/architecture.md` for what's deliberately *not* built yet (live EEG, a real
 LLM planner, SQLite-backed audit storage) and why.
@@ -75,6 +77,22 @@ The accent color (top-right "Accent color" swatch) defaults to the Noggin logo's
 but is user-customizable and persisted per-browser (`localStorage`) - it's purely
 decorative (borders/focus rings), so any choice stays usable; "Reset" restores the
 default.
+
+**Onscreen keyboard.** "Show onscreen keyboard" reveals a row-column scanning keyboard -
+the standard text-entry pattern for someone who can't use a physical keyboard at all
+(switch access, AAC devices, and exactly what a real BCI's select/cancel signal can
+drive). It scans rows, then columns within a locked row; Confirm selects, Reject backs
+out one level - while it's active, those same two controls stop confirming/rejecting a
+pending plan and drive the keyboard instead. Selecting "DONE" sends the composed text as
+a goal, the same way the free-text box above does.
+
+**Bot-checks/CAPTCHAs.** If a page shows an interactive challenge (reCAPTCHA, hCaptcha,
+Cloudflare Turnstile) mid-plan, execution pauses - state `awaiting_manual_action` - and
+the control panel shows a "Needs your help" panel with a Continue button. This never
+tries to solve the challenge; a plan can click a passive "I'm not a robot" checkbox as an
+ordinary step, but the actual puzzle is always left for a person. **This only works
+headed** (`npm run dev:headed`) - headless mode has no window for anyone to click into,
+so a paused challenge there can never be cleared.
 
 ### Planning open-ended goals for free, locally, via Ollama (recommended)
 

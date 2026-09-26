@@ -10,6 +10,8 @@
  *                        "undo" | "query_intent" }
  *                     { type: "trigger_goal", preset: "1" | "2" | "3" | "4" }
  *                     { type: "trigger_free_text_goal", text: "open youtube and watch some sumo" }
+ *                     { type: "continue_after_manual_action" }
+ *                     { type: "toggle_onscreen_keyboard" }
  */
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
@@ -125,6 +127,12 @@ export function startServer(orchestrator: Orchestrator, port: number) {
           orchestrator.bci.trigger(IntentCommand.EXECUTE_GOAL, text.split(/\s+/), { confidence: 1 });
           break;
         }
+        case "continue_after_manual_action":
+          void orchestrator.continueAfterManualAction();
+          break;
+        case "toggle_onscreen_keyboard":
+          orchestrator.toggleOnscreenKeyboard();
+          break;
         default:
           break;
       }

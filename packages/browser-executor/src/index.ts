@@ -20,6 +20,8 @@ import {
   type Browser,
   type BrowserContext,
   type CDPSession,
+  type Frame,
+  type Locator,
   type Page,
 } from "playwright";
 import { BrowserActionType, type BrowserAction } from "@noggin/intent-contract";
@@ -42,6 +44,17 @@ export interface ActionResult {
   ok: boolean;
   detail: string;
   context: PageContext;
+}
+
+export interface ChallengeInfo {
+  /** A recognized bot-check widget (checkbox or active challenge) is present anywhere
+   * on the page. */
+  present: boolean;
+  provider?: "recaptcha" | "hcaptcha" | "turnstile";
+  /** True only when the widget's own interactive challenge (image grid, audio, puzzle)
+   * is actually showing - not just an unclicked checkbox - meaning nothing further can
+   * proceed until a person solves it. */
+  requiresManualAction: boolean;
 }
 
 export class NotImplementedActionError extends Error {
@@ -125,6 +138,51 @@ export class BrowserExecutor {
   }
 
   /**
+   * Best-effort detection of a bot-check widget on the page, via the `src` attribute of
+   * every `<iframe>` - matched against known, publicly documented URL patterns for the
+   * major providers, not against network activity, so it works even if the iframe's own
+   * cross-origin content hasn't (or can't) finish loading.
+   *
+   * This deliberately does nothing to solve or bypass a challenge - that's out of scope
+   * on principle (it's what these checks exist to prevent, and would violate the
+   * target site's terms of service) as well as out of reach technically (there's no
+   * BrowserActionType for "read this image grid"). The only thing this enables is
+   * `Orchestrator` pausing plan execution and asking a person to complete the challenge
+   * in the browser window - which only works when the browser is headed
+   * (`NOGGIN_HEADLESS=false`); see README.
+   */
+  async detectChallenge(): Promise<ChallengeInfo> {
+    const page = this.requirePage();
+    const iframes = await page
+      .evaluate(() =>
+        Array.from(document.querySelectorAll("iframe")).map((el) => {
+          const rect = el.getBoundingClientRect();
+          return { src: el.getAttribute("src") ?? "", visible: rect.width > 4 && rect.height > 4 };
+        }),
+      )
+      .catch(() => [] as Array<{ src: string; visible: boolean }>);
+
+    let present = false;
+    let requiresManualAction = false;
+    let provider: ChallengeInfo["provider"];
+
+    for (const iframe of iframes) {
+      for (const pattern of CHALLENGE_URL_PATTERNS) {
+        if (pattern.checkbox.test(iframe.src) || pattern.challenge.test(iframe.src)) {
+          present = true;
+          provider ??= pattern.provider;
+        }
+        if (pattern.challenge.test(iframe.src) && iframe.visible) {
+          requiresManualAction = true;
+          provider = pattern.provider;
+        }
+      }
+    }
+
+    return { present, provider, requiresManualAction };
+  }
+
+  /**
    * Execute one BrowserAction and report back a page-context snapshot for the audit
    * log and for the next planning iteration.
    */
@@ -174,11 +232,12 @@ export class BrowserExecutor {
       case BrowserActionType.CLICK_BY_ROLE: {
         const role = requireStringParam(action, "role");
         const nameContains = optionalStringParam(action, "nameContains");
-        const locator = page
-          .getByRole(role as Parameters<Page["getByRole"]>[0], {
-            name: nameContains ? new RegExp(escapeRegExp(nameContains), "i") : undefined,
-          })
-          .first();
+        const name = nameContains ? new RegExp(escapeRegExp(nameContains), "i") : undefined;
+        // Checks like reCAPTCHA's "I'm not a robot" checkbox live inside an <iframe>,
+        // which page.getByRole() alone never reaches - it only searches the main frame.
+        const locator = await firstMatchAcrossFrames(page, (target) =>
+          target.getByRole(role as Parameters<Page["getByRole"]>[0], { name }),
+        );
         await locator.click({ timeout: 5000 });
         return this.ok(action, `clicked role="${role}"${nameContains ? ` name~="${nameContains}"` : ""}`);
       }
@@ -192,12 +251,12 @@ export class BrowserExecutor {
         // CSS locator for that one case instead of pretending role-grounding covers it.
         const locator =
           fieldType === "password"
-            ? page.locator('input[type="password"]').first()
-            : page
-                .getByRole("textbox", {
+            ? await firstMatchAcrossFrames(page, (target) => target.locator('input[type="password"]'))
+            : await firstMatchAcrossFrames(page, (target) =>
+                target.getByRole("textbox", {
                   name: nameContains ? new RegExp(escapeRegExp(nameContains), "i") : undefined,
-                })
-                .first();
+                }),
+              );
         await locator.fill(value, { timeout: 5000 });
         // Never echo a password-field value back into the audit-visible detail string,
         // even though the caller is expected to have already redacted it upstream.
@@ -276,6 +335,46 @@ function optionalStringParam(action: BrowserAction, key: string): string | undef
 function escapeRegExp(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
+
+/**
+ * Tries a locator against the main frame first, then every sub-frame in document order,
+ * returning the first one with at least one match. Falls back to the main-frame locator
+ * (which will simply time out with its normal error) if nothing matched anywhere - a
+ * widget embedded in an <iframe> (reCAPTCHA's checkbox is the motivating case) is
+ * otherwise invisible to a plain `page.getByRole()`/`page.locator()` call, which only
+ * searches the main frame.
+ */
+async function firstMatchAcrossFrames(
+  page: Page,
+  makeLocator: (target: Page | Frame) => Locator,
+): Promise<Locator> {
+  const mainLocator = makeLocator(page);
+  if ((await mainLocator.count().catch(() => 0)) > 0) return mainLocator.first();
+
+  for (const frame of page.frames()) {
+    if (frame === page.mainFrame()) continue;
+    const locator = makeLocator(frame);
+    if ((await locator.count().catch(() => 0)) > 0) return locator.first();
+  }
+
+  return mainLocator.first();
+}
+
+/**
+ * Best-effort, based on each provider's publicly documented iframe URL conventions as
+ * of writing - not a guarantee, since providers can and do change these. `checkbox`
+ * matches the unclicked/passive widget; `challenge` matches the iframe that shows the
+ * actual interactive puzzle once escalated.
+ */
+const CHALLENGE_URL_PATTERNS: Array<{
+  provider: NonNullable<ChallengeInfo["provider"]>;
+  checkbox: RegExp;
+  challenge: RegExp;
+}> = [
+  { provider: "recaptcha", checkbox: /recaptcha.*\/anchor/i, challenge: /recaptcha.*\/bframe/i },
+  { provider: "hcaptcha", checkbox: /hcaptcha\.com\/.*frame=checkbox/i, challenge: /hcaptcha\.com\/.*frame=challenge/i },
+  { provider: "turnstile", checkbox: /challenges\.cloudflare\.com/i, challenge: /challenges\.cloudflare\.com.*challenge/i },
+];
 
 /**
  * Allowlist, not a blocklist: an unrecognized scheme fails closed. `data:` is included
